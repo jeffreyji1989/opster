@@ -3,4 +3,4 @@ server:
 
 spring:
   application:
-    name: opster-backend
+    name: opster-service
