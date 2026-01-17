@@ -1,0 +1,178 @@
+package com.opster.module.service.service.impl;
+
+import cn.hutool.core.util.StrUtil;
+import com.jcraft.jsch.Session;
+import com.opster.common.SshUtils;
+import com.opster.module.project.entity.Project;
+import com.opster.module.project.repository.ProjectRepository;
+import com.opster.module.server.entity.Server;
+import com.opster.module.server.repository.ServerRepository;
+import com.opster.module.service.entity.AppService;
+import com.opster.module.service.repository.AppServiceRepository;
+import com.opster.module.service.service.AppServiceService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class AppServiceServiceImpl implements AppServiceService {
+
+    @Autowired
+    private AppServiceRepository appServiceRepository;
+
+    @Autowired
+    private ServerRepository serverRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
+
+    @Value("${opster.maven-home}")
+    private String mavenHome;
+
+    @Value("${opster.java-home}")
+    private String javaHome;
+
+    @Override
+    public List<AppService> findAll() {
+        return appServiceRepository.findAll();
+    }
+
+    @Override
+    public Page<AppService> findPage(Pageable pageable) {
+        return appServiceRepository.findAll(pageable);
+    }
+
+    @Override
+    public Optional<AppService> findById(Integer id) {
+        return appServiceRepository.findById(id);
+    }
+
+    @Override
+    public AppService save(AppService service) {
+        boolean isNew = service.getId() == null;
+        AppService savedService = appServiceRepository.save(service);
+        
+        // Update server deployed count
+        if (isNew) {
+            updateServerDeployedCount(savedService.getServerId(), 1);
+        }
+        
+        return savedService;
+    }
+
+    @Override
+    public void deleteById(Integer id) {
+        Optional<AppService> serviceOpt = appServiceRepository.findById(id);
+        if (serviceOpt.isPresent()) {
+            updateServerDeployedCount(serviceOpt.get().getServerId(), -1);
+            appServiceRepository.deleteById(id);
+        }
+    }
+
+    private void updateServerDeployedCount(Integer serverId, int delta) {
+        if (serverId != null) {
+            serverRepository.findById(serverId).ifPresent(server -> {
+                int count = server.getDeployedCount() == null ? 0 : server.getDeployedCount();
+                server.setDeployedCount(Math.max(0, count + delta));
+                serverRepository.save(server);
+            });
+        }
+    }
+
+    @Override
+    public long count() {
+        return appServiceRepository.count();
+    }
+
+    @Override
+    public String compileAndRestart(Integer id) {
+        return "Please use WebSocket for this operation";
+    }
+
+    @Override
+    public String restart(Integer id) {
+        return "Please use WebSocket for this operation";
+    }
+
+    @Override
+    public String start(Integer id) {
+        return "Please use WebSocket for this operation";
+    }
+
+    @Override
+    public String viewLog(Integer id) {
+        Optional<AppService> serviceOpt = findById(id);
+        if (serviceOpt.isEmpty()) return "Service not found";
+        AppService service = serviceOpt.get();
+        
+        Optional<Server> serverOpt = serverRepository.findById(service.getServerId());
+        if (serverOpt.isEmpty()) return "Server not found";
+        Server server = serverOpt.get();
+
+        if (StrUtil.isBlank(service.getLogPath())) {
+            return "Log path not configured";
+        }
+        
+        StringBuilder logs = new StringBuilder();
+        Session session = null;
+        try {
+            session = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            String cmd = "tail -n 100 " + service.getLogPath();
+            logs.append(SshUtils.exec(session, cmd));
+        } catch (Exception e) {
+            logs.append("ERROR: ").append(e.getMessage());
+        } finally {
+            SshUtils.disconnect(session);
+        }
+        
+        return logs.toString();
+    }
+
+    @Override
+    public long countByStatus(Integer status) {
+        return appServiceRepository.countByStatus(status);
+    }
+
+    @Override
+    public List<Map<String, Object>> searchMonitor(Integer projectId, String ip) {
+        List<AppService> allServices = appServiceRepository.findAll();
+        
+        // Filter in memory for simplicity (or use Specification for complex queries)
+        return allServices.stream()
+                .filter(service -> {
+                    boolean matchProject = (projectId == null || service.getProjectId().equals(projectId));
+                    boolean matchIp = true;
+                    if (StrUtil.isNotBlank(ip)) {
+                        Optional<Server> server = serverRepository.findById(service.getServerId());
+                        matchIp = server.isPresent() && server.get().getIp().contains(ip);
+                    }
+                    return matchProject && matchIp;
+                })
+                .map(service -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", service.getId());
+                    map.put("status", service.getStatus());
+                    map.put("updateTime", service.getUpdateTime());
+                    
+                    projectRepository.findById(service.getProjectId()).ifPresent(p -> {
+                        map.put("projectName", p.getProjectName());
+                        map.put("monitorUrl", p.getMonitorUrl());
+                    });
+                    
+                    serverRepository.findById(service.getServerId()).ifPresent(s -> {
+                        map.put("serverIp", s.getIp());
+                        map.put("serverAlias", s.getAlias());
+                    });
+                    
+                    return map;
+                })
+                .collect(Collectors.toList());
+    }
+}

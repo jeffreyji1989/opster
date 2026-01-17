@@ -1,6 +1,24 @@
 server:
   port: 8080
+  tomcat:
+    connection-timeout: -1
+    keep-alive-timeout: -1
 
 spring:
   application:
-    name: opster-service
+    name: opster-backend
+  datasource:
+    driver-class-name: org.sqlite.JDBC
+    url: jdbc:sqlite:opster.db
+    username: 
+    password: 
+
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+
+opster:
+  maven-home: /home/soft/apache-maven-4.0.0
+  java-home: /home/soft/jdk-25.0.1
