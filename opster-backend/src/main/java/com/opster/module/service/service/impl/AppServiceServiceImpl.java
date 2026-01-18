@@ -3,6 +3,8 @@ package com.opster.module.service.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.jcraft.jsch.Session;
 import com.opster.common.SshUtils;
+import com.opster.common.enums.RunStatus;
+import com.opster.common.enums.Status;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
@@ -14,11 +16,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Predicate;
 
 @Service
 @Transactional
@@ -42,6 +47,34 @@ public class AppServiceServiceImpl implements AppServiceService {
     @Override
     public List<AppService> findAll() {
         return appServiceRepository.findAll();
+    }
+
+    @Override
+    public List<AppService> findList(Integer projectId, String businessLine, String env, Integer runStatus, Integer status) {
+        // 先查询所有服务
+        List<AppService> services = appServiceRepository.findAll();
+        
+        // 过滤条件
+        return services.stream()
+                // 项目ID
+                .filter(service -> projectId == null || service.getProjectId().equals(projectId))
+                // 业务线
+                .filter(service -> {
+                    if (businessLine == null || businessLine.isEmpty()) {
+                        return true;
+                    }
+                    // 查询项目信息
+                    Optional<Project> projectOptional = projectRepository.findById(service.getProjectId());
+                    return projectOptional.isPresent() && projectOptional.get().getBusinessLine() != null && 
+                           projectOptional.get().getBusinessLine().contains(businessLine);
+                })
+                // 环境
+                .filter(service -> env == null || env.isEmpty() || service.getEnv() != null && service.getEnv().equals(env))
+                // 运行状态
+                .filter(service -> runStatus == null || service.getRunStatus() != null && service.getRunStatus().equals(RunStatus.fromCode(runStatus)))
+                // 启用状态
+                .filter(service -> status == null || service.getStatus() != null && service.getStatus().equals(Status.fromCode(status)))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -137,7 +170,7 @@ public class AppServiceServiceImpl implements AppServiceService {
 
     @Override
     public long countByStatus(Integer status) {
-        return appServiceRepository.countByStatus(status);
+        return appServiceRepository.countByStatus(Status.fromCode(status));
     }
 
     @Override

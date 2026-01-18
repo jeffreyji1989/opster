@@ -9,6 +9,7 @@ import java.util.Optional;
 
 public interface ProjectService {
     List<Project> findAll();
+    List<Project> findList(String projectName, String businessLine, Integer status);
     Page<Project> findPage(Pageable pageable);
     Optional<Project> findById(Integer id);
     Project save(Project project);

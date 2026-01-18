@@ -23,8 +23,11 @@ public class ProjectController {
      * 获取所有项目
      */
     @GetMapping("/list")
-    public List<Project> list() {
-        return projectService.findAll();
+    public List<Project> list(
+            @RequestParam(required = false) String projectName,
+            @RequestParam(required = false) String businessLine,
+            @RequestParam(required = false) Integer status) {
+        return projectService.findList(projectName, businessLine, status);
     }
 
     /**

@@ -5,6 +5,7 @@ import Project from '../views/Project.vue'
 import Server from '../views/Server.vue'
 import Service from '../views/Service.vue'
 import Monitor from '../views/Monitor.vue'
+import DeploymentRecord from '../views/DeploymentRecord.vue'
 
 const routes = [
   {
@@ -36,6 +37,11 @@ const routes = [
         path: 'monitor',
         name: 'Monitor',
         component: Monitor
+      },
+      {
+        path: 'deployment-record',
+        name: 'DeploymentRecord',
+        component: DeploymentRecord
       }
     ]
   }

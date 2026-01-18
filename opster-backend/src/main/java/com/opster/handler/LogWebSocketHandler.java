@@ -3,6 +3,8 @@ package com.opster.handler;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.Session;
 import com.opster.common.SshUtils;
+import com.opster.module.deployment.entity.DeploymentRecord;
+import com.opster.module.deployment.repository.DeploymentRecordRepository;
 import com.opster.module.server.entity.Server;
 import com.opster.module.server.repository.ServerRepository;
 import com.opster.module.service.entity.AppService;
@@ -15,6 +17,8 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -37,22 +41,32 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
     @Autowired
     private ServerRepository serverRepository;
 
+    @Autowired
+    private DeploymentRecordRepository deploymentRecordRepository;
+
     private final Map<String, SshSessionHolder> sessionMap = new ConcurrentHashMap<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String path = session.getUri().getPath();
-        // /ws/log/{serviceId}
-        String serviceIdStr = path.substring(path.lastIndexOf('/') + 1);
-        Integer serviceId = Integer.parseInt(serviceIdStr);
-
-        log.info("WebSocket connected for service: {}", serviceId);
+        log.info("WebSocket connected with path: {}", path);
         
-        startLogTail(session, serviceId);
+        // 检查路径格式
+        if (path.contains("/deployment/")) {
+            // /ws/log/deployment/{deploymentId}
+            String deploymentIdStr = path.substring(path.lastIndexOf('/') + 1);
+            Integer deploymentId = Integer.parseInt(deploymentIdStr);
+            startDeploymentLogTail(session, deploymentId);
+        } else {
+            // /ws/log/{serviceId}
+            String serviceIdStr = path.substring(path.lastIndexOf('/') + 1);
+            Integer serviceId = Integer.parseInt(serviceIdStr);
+            startServiceLogTail(session, serviceId);
+        }
     }
 
-    private void startLogTail(WebSocketSession wsSession, Integer serviceId) {
+    private void startServiceLogTail(WebSocketSession wsSession, Integer serviceId) {
         executorService.submit(() -> {
             SshSessionHolder holder = new SshSessionHolder();
             sessionMap.put(wsSession.getId(), holder);
@@ -98,7 +112,7 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
                 }
 
             } catch (Exception e) {
-                log.error("Error tailing log", e);
+                log.error("Error tailing service log", e);
                 try {
                     if (wsSession.isOpen()) {
                         wsSession.sendMessage(new TextMessage("Error: " + e.getMessage()));
@@ -106,6 +120,78 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
                 } catch (Exception ignored) {}
             } finally {
                 closeSshSession(wsSession.getId());
+            }
+        });
+    }
+
+    private void startDeploymentLogTail(WebSocketSession wsSession, Integer deploymentId) {
+        executorService.submit(() -> {
+            SshSessionHolder holder = new SshSessionHolder();
+            sessionMap.put(wsSession.getId(), holder);
+
+            try {
+                Optional<DeploymentRecord> recordOpt = deploymentRecordRepository.findById(deploymentId);
+                if (recordOpt.isEmpty()) {
+                    wsSession.sendMessage(new TextMessage("Deployment record not found"));
+                    wsSession.close();
+                    return;
+                }
+                DeploymentRecord record = recordOpt.get();
+
+                if (record.getLogPath() == null || record.getLogPath().isEmpty()) {
+                    wsSession.sendMessage(new TextMessage("Log path not configured"));
+                    wsSession.close();
+                    return;
+                }
+
+                // 获取服务器信息
+                Optional<Server> serverOpt = serverRepository.findById(record.getServerId());
+                if (serverOpt.isEmpty()) {
+                    wsSession.sendMessage(new TextMessage("Server not found"));
+                    wsSession.close();
+                    return;
+                }
+                Server server = serverOpt.get();
+
+                wsSession.sendMessage(new TextMessage("=== Deployment Log ==="));
+                wsSession.sendMessage(new TextMessage("Log Path: " + record.getLogPath()));
+                wsSession.sendMessage(new TextMessage("Project: " + record.getProjectName()));
+                wsSession.sendMessage(new TextMessage("Server: " + record.getServerIp() + " (" + record.getServerAlias() + ")"));
+                wsSession.sendMessage(new TextMessage("Service: " + record.getServiceName()));
+                wsSession.sendMessage(new TextMessage("Status: " + record.getStatus()));
+                wsSession.sendMessage(new TextMessage("=== Log Content (tail -100f) ===\n"));
+
+                // Connect SSH
+                Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+                holder.sshSession = sshSession;
+
+                ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
+                // tail -100f command
+                channel.setCommand("tail -100f " + record.getLogPath());
+                InputStream in = channel.getInputStream();
+                channel.connect();
+                holder.channel = channel;
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                String line;
+                while ((line = reader.readLine()) != null && wsSession.isOpen()) {
+                    wsSession.sendMessage(new TextMessage(line));
+                }
+
+            } catch (Exception e) {
+                log.error("Error tailing deployment log", e);
+                try {
+                    if (wsSession.isOpen()) {
+                        wsSession.sendMessage(new TextMessage("Error: " + e.getMessage()));
+                    }
+                } catch (Exception ignored) {}
+            } finally {
+                closeSshSession(wsSession.getId());
+                try {
+                    if (wsSession.isOpen()) {
+                        wsSession.close();
+                    }
+                } catch (Exception ignored) {}
             }
         });
     }

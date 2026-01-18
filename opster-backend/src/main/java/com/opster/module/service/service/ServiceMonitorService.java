@@ -1,5 +1,7 @@
 package com.opster.module.service.service;
 
+import com.opster.common.enums.RunStatus;
+import com.opster.common.enums.Status;
 import com.opster.module.service.entity.AppService;
 import com.opster.module.service.repository.AppServiceRepository;
 import com.opster.module.server.entity.Server;
@@ -62,7 +64,7 @@ public class ServiceMonitorService implements InitializingBean {
             // 查询所有启用状态为1的服务
             List<AppService> services = appServiceRepository.findAll();
             services.stream()
-                    .filter(service -> service.getEnabled() != null && service.getEnabled() == 1)
+                    .filter(service -> service.getStatus() != null && service.getStatus() == Status.ENABLED)
                     .forEach(this::checkServiceStatus);
             logger.info("Service monitoring completed.");
         } catch (Exception e) {
@@ -102,9 +104,9 @@ public class ServiceMonitorService implements InitializingBean {
             }
             
             // 更新服务状态
-            int newStatus = isAlive ? 1 : 2; // 1-正常, 2-异常
-            if (service.getStatus() != newStatus) {
-                service.setStatus(newStatus);
+            RunStatus newStatus = isAlive ? RunStatus.NORMAL : RunStatus.ABNORMAL; // 1-正常, 2-异常
+            if (service.getRunStatus() != newStatus) {
+                service.setRunStatus(newStatus);
                 appServiceRepository.save(service);
                 logger.info("Service status updated: {} (ID: {}) - {}", 
                         service.getProjectId(), service.getId(), isAlive ? "正常" : "异常");
@@ -113,8 +115,8 @@ public class ServiceMonitorService implements InitializingBean {
         } catch (Exception e) {
             logger.error("Error checking service status for ID {}: {}", service.getId(), e.getMessage(), e);
             // 发生异常时将服务状态设置为异常
-            if (service.getStatus() != 2) {
-                service.setStatus(2);
+            if (service.getRunStatus() != RunStatus.ABNORMAL) {
+                service.setRunStatus(RunStatus.ABNORMAL);
                 appServiceRepository.save(service);
             }
         }

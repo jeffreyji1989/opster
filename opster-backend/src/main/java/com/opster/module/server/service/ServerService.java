@@ -9,6 +9,7 @@ import java.util.Optional;
 
 public interface ServerService {
     List<Server> findAll();
+    List<Server> findList(String ip, String groupName, String env, Integer status);
     Page<Server> findPage(Pageable pageable);
     Optional<Server> findById(Integer id);
     Server save(Server server);

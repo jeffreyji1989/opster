@@ -24,8 +24,13 @@ public class ServiceController {
      * 获取所有服务
      */
     @GetMapping("/list")
-    public List<AppService> list() {
-        return appServiceService.findAll();
+    public List<AppService> list(
+            @RequestParam(required = false) Integer projectId,
+            @RequestParam(required = false) String businessLine,
+            @RequestParam(required = false) String env,
+            @RequestParam(required = false) Integer runStatus,
+            @RequestParam(required = false) Integer status) {
+        return appServiceService.findList(projectId, businessLine, env, runStatus, status);
     }
 
     /**

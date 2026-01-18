@@ -1,6 +1,7 @@
 package com.opster.module.project.entity;
 
 import com.opster.common.BaseEntity;
+import com.opster.common.enums.Status;
 import jakarta.persistence.*;
 
 /**
@@ -48,7 +49,8 @@ public class Project extends BaseEntity {
      * 状态: 0-禁用 1-启用
      */
     @Column(name = "status")
-    private Integer status;
+    @Enumerated(EnumType.ORDINAL)
+    private Status status;
 
     public Integer getId() {
         return id;
@@ -98,11 +100,11 @@ public class Project extends BaseEntity {
         this.businessLine = businessLine;
     }
 
-    public Integer getStatus() {
+    public Status getStatus() {
         return status;
     }
 
-    public void setStatus(Integer status) {
+    public void setStatus(Status status) {
         this.status = status;
     }
 }

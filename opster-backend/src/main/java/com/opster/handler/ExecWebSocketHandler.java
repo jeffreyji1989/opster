@@ -4,6 +4,11 @@ import cn.hutool.core.util.StrUtil;
 import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.Session;
 import com.opster.common.SshUtils;
+import com.opster.common.enums.RunStatus;
+import com.opster.common.enums.Status;
+import com.opster.common.enums.DeploymentStatus;
+import com.opster.module.deployment.entity.DeploymentRecord;
+import com.opster.module.deployment.service.DeploymentRecordService;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
@@ -22,6 +27,8 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,6 +50,9 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
 
     @Autowired
     private ProjectRepository projectRepository;
+
+    @Autowired
+    private DeploymentRecordService deploymentRecordService;
 
     @Value("${opster.maven-home}")
     private String mavenHome;
@@ -76,6 +86,16 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
         executorService.submit(() -> {
             SshSessionHolder holder = new SshSessionHolder();
             sessionMap.put(wsSession.getId(), holder);
+
+            DeploymentRecord deploymentRecord = null;
+            String logFilePath = null;
+            
+            // 添加状态跟踪变量
+            boolean isGitSuccess = true;
+            boolean isMavenSuccess = true;
+            boolean isDeploySuccess = true;
+            boolean isStartSuccess = true;
+            boolean isOverallSuccess = true;
 
             try {
                 Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
@@ -111,64 +131,169 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
                 String envVars = String.format("export JAVA_HOME=%s && export PATH=$JAVA_HOME/bin:$PATH && export M2_HOME=%s && export PATH=$M2_HOME/bin:$PATH", javaHome, mavenHome);
                 String deployPath = service.getDeployPath();
                 
-                String cmdToExec = "";
+                // 生成日志文件路径
+                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+                String logDir = deployPath + "/p_log";
+                logFilePath = logDir + "/" + timestamp + ".log";
+                
+                // 创建p_log目录（如果不存在）
+                String createLogDirCmd = String.format("mkdir -p %s", logDir);
+                executeCommand(wsSession, sshSession, createLogDirCmd);
+                
+                // 写入开始日志
+                String startLog = "=== Deployment Start: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " ===\n";
+                String writeStartLogCmd = String.format("echo '%s' > %s", startLog, logFilePath);
+                executeCommand(wsSession, sshSession, writeStartLogCmd);
 
-                if ("compile-restart".equals(action)) {
+                // Create deployment record
+                deploymentRecord = new DeploymentRecord();
+                deploymentRecord.setProjectId(project.getId());
+                deploymentRecord.setProjectName(project.getProjectName());
+                deploymentRecord.setServerId(server.getId());
+                deploymentRecord.setServerIp(server.getIp());
+                deploymentRecord.setServerAlias(server.getAlias());
+                deploymentRecord.setServiceId(service.getId());
+                deploymentRecord.setServiceName("Service-" + service.getId()); // Use service ID as name
+                deploymentRecord.setLogPath(logFilePath);
+                deploymentRecord.setStatus(DeploymentStatus.IN_PROGRESS);
+                deploymentRecord = deploymentRecordService.create(deploymentRecord);
+
+                if ("deploy".equals(action)) {
                     // Git Pull/Clone
-                    sendMessage(wsSession, ">>> Checking out source code...");
+                    String gitMessage = ">>> Checking out source code...";
+                    sendMessage(wsSession, gitMessage);
+                    appendToLogFile(sshSession, logFilePath, gitMessage + "\n");
+                    
                     String gitUrl = project.getGitUrl();
                     String branch = service.getGitBranch();
                     String gitCmd = String.format(
                         "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",
                         deployPath, deployPath, branch, deployPath, deployPath, branch, gitUrl
                     );
-                    executeCommand(wsSession, sshSession, gitCmd);
+                    isGitSuccess = executeCommandWithLog(wsSession, sshSession, gitCmd, logFilePath);
+                    if (!isGitSuccess) {
+                        sendMessage(wsSession, ">>> Git operation failed!");
+                        isOverallSuccess = false;
+                    }
 
                     // Maven Build
-                    sendMessage(wsSession, ">>> Executing Maven build...");
-                    String mavenCmd = service.getMavenCmd();
-                    String buildCmd = String.format("source /etc/profile && %s && cd %s/source && %s", envVars, deployPath, mavenCmd);
-                    executeCommand(wsSession, sshSession, buildCmd);
+                    if (isOverallSuccess) {
+                        String mavenMessage = ">>> Executing Maven build...";
+                        sendMessage(wsSession, mavenMessage);
+                        appendToLogFile(sshSession, logFilePath, mavenMessage + "\n");
+                        
+                        String mavenCmd = service.getMavenCmd();
+                        String buildCmd = String.format("source /etc/profile && %s && cd %s/source && %s", envVars, deployPath, mavenCmd);
+                        isMavenSuccess = executeCommandWithLog(wsSession, sshSession, buildCmd, logFilePath);
+                        if (!isMavenSuccess) {
+                            sendMessage(wsSession, ">>> Maven build failed!");
+                            isOverallSuccess = false;
+                        }
+                    }
 
                     // Copy Jar
-                    sendMessage(wsSession, ">>> Deploying Jar...");
-                    String copyCmd = String.format("cp %s/source/target/*.jar %s/", deployPath, deployPath);
-                    executeCommand(wsSession, sshSession, copyCmd);
+                    if (isOverallSuccess) {
+                        String copyMessage = ">>> Deploying Jar...";
+                        sendMessage(wsSession, copyMessage);
+                        appendToLogFile(sshSession, logFilePath, copyMessage + "\n");
+                        
+                        String copyCmd = String.format("cp %s/source/target/*.jar %s/", deployPath, deployPath);
+                        isDeploySuccess = executeCommandWithLog(wsSession, sshSession, copyCmd, logFilePath);
+                        if (!isDeploySuccess) {
+                            sendMessage(wsSession, ">>> Jar deployment failed!");
+                            isOverallSuccess = false;
+                        }
+                    }
 
                     // Restart
-                    sendMessage(wsSession, ">>> Restarting service...");
-                    String startScript = service.getStartScript();
-                    String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, deployPath, startScript);
-                    executeCommand(wsSession, sshSession, restartCmd);
+                    if (isOverallSuccess) {
+                        String restartMessage = ">>> Restarting service...";
+                        sendMessage(wsSession, restartMessage);
+                        appendToLogFile(sshSession, logFilePath, restartMessage + "\n");
+                        
+                        String startScript = service.getStartScript();
+                        String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, deployPath, startScript);
+                        isStartSuccess = executeCommandWithLog(wsSession, sshSession, restartCmd, logFilePath);
+                        if (!isStartSuccess) {
+                            sendMessage(wsSession, ">>> Service restart failed!");
+                            isOverallSuccess = false;
+                        }
+                    }
                     
                 } else if ("restart".equals(action) || "start".equals(action)) {
-                    sendMessage(wsSession, ">>> " + (action.equals("restart") ? "Restarting" : "Starting") + " service...");
+                    String actionMessage = ">>> " + (action.equals("restart") ? "Restarting" : "Starting") + " service...";
+                    sendMessage(wsSession, actionMessage);
+                    appendToLogFile(sshSession, logFilePath, actionMessage + "\n");
+                    
                     String startScript = service.getStartScript();
                     String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, deployPath, startScript);
-                    executeCommand(wsSession, sshSession, restartCmd);
+                    isStartSuccess = executeCommandWithLog(wsSession, sshSession, restartCmd, logFilePath);
+                    if (!isStartSuccess) {
+                        sendMessage(wsSession, ">>> Service " + action + " failed!");
+                        isOverallSuccess = false;
+                    }
                 }
 
                 // Check Port
                 if (service.getPort() != null) {
-                    sendMessage(wsSession, ">>> Checking port " + service.getPort() + "...");
-                    boolean isStarted = checkPort(wsSession, sshSession, service.getPort());
-                    if (isStarted) {
-                        sendMessage(wsSession, ">>> Service started successfully (Port is listening).");
-                        service.setStatus(1); // Normal
+                    String portMessage = ">>> Checking port " + service.getPort() + "...";
+                    sendMessage(wsSession, portMessage);
+                    appendToLogFile(sshSession, logFilePath, portMessage + "\n");
+                    
+                    boolean isStarted = checkPortWithLog(wsSession, sshSession, service.getPort(), logFilePath);
+                    if (isStarted && isOverallSuccess) {
+                        String successMessage = ">>> Service started successfully (Port is listening).";
+                        sendMessage(wsSession, successMessage);
+                        appendToLogFile(sshSession, logFilePath, successMessage + "\n");
+                        service.setRunStatus(RunStatus.NORMAL); // Normal
+                        deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
                     } else {
-                        sendMessage(wsSession, ">>> Service failed to start (Port is not listening).");
-                        service.setStatus(2); // Error
+                        String failureMessage = ">>> Service failed to start (Port is not listening or previous step failed).";
+                        sendMessage(wsSession, failureMessage);
+                        appendToLogFile(sshSession, logFilePath, failureMessage + "\n");
+                        service.setRunStatus(RunStatus.ABNORMAL); // Error
+                        deploymentRecord.setStatus(DeploymentStatus.FAILED);
                     }
                     appServiceRepository.save(service);
+                    deploymentRecordService.update(deploymentRecord);
                 } else {
-                    sendMessage(wsSession, ">>> Warning: Port not configured, skip health check.");
+                    String warningMessage = ">>> Warning: Port not configured, skip health check.";
+                    sendMessage(wsSession, warningMessage);
+                    appendToLogFile(sshSession, logFilePath, warningMessage + "\n");
+                    
+                    if (isOverallSuccess) {
+                        deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
+                    } else {
+                        deploymentRecord.setStatus(DeploymentStatus.FAILED);
+                    }
+                    deploymentRecordService.update(deploymentRecord);
                 }
 
-                sendMessage(wsSession, ">>> Done.");
+                String doneMessage = ">>> Done.";
+                sendMessage(wsSession, doneMessage);
+                appendToLogFile(sshSession, logFilePath, doneMessage + "\n");
+                
+                // 写入结束日志
+                String endLog = "=== Deployment End: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " ===\n";
+                appendToLogFile(sshSession, logFilePath, endLog);
 
             } catch (Exception e) {
                 log.error("Error executing command", e);
-                sendMessage(wsSession, "ERROR: " + e.getMessage());
+                String errorMessage = "ERROR: " + e.getMessage();
+                sendMessage(wsSession, errorMessage);
+                
+                // 写入错误日志到文件
+                if (logFilePath != null) {
+                    try {
+                        appendToLogFile(holder.sshSession, logFilePath, errorMessage + "\n");
+                    } catch (Exception ignored) {}
+                }
+                
+                // Update deployment record status to FAILED
+                if (deploymentRecord != null) {
+                    deploymentRecord.setStatus(DeploymentStatus.FAILED);
+                    deploymentRecordService.update(deploymentRecord);
+                }
             } finally {
                 closeSshSession(wsSession.getId());
                 try {
@@ -199,6 +324,70 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
         channel.disconnect();
     }
     
+    private boolean executeCommandWithLog(WebSocketSession wsSession, Session sshSession, String command, String logFilePath) throws Exception {
+        // 先将命令写入日志
+        appendToLogFile(sshSession, logFilePath, "$ " + command + "\n");
+        
+        ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
+        channel.setCommand(command);
+        InputStream in = channel.getInputStream();
+        InputStream err = channel.getErrStream();
+        channel.connect();
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        BufferedReader errReader = new BufferedReader(new InputStreamReader(err, StandardCharsets.UTF_8));
+        
+        String line;
+        boolean isSuccess = true;
+        
+        while ((line = reader.readLine()) != null) {
+            sendMessage(wsSession, line);
+            appendToLogFile(sshSession, logFilePath, line + "\n");
+            
+            // 分析日志，识别成功/失败标识
+            isSuccess = analyzeLogLine(line, isSuccess);
+        }
+        while ((line = errReader.readLine()) != null) {
+             sendMessage(wsSession, line);
+             appendToLogFile(sshSession, logFilePath, line + "\n");
+             
+             // 分析错误日志，识别失败标识
+             isSuccess = analyzeLogLine(line, isSuccess);
+        }
+        
+        channel.disconnect();
+        return isSuccess;
+    }
+    
+    private boolean analyzeLogLine(String line, boolean currentStatus) {
+        // 分析日志行，识别成功/失败标识
+        line = line.toLowerCase();
+        
+        // 识别maven打包失败
+        if (line.contains("build failure")) {
+            return false;
+        }
+        
+        // 识别springboot启动失败
+        if (line.contains("error starting applicationcontext") || 
+            line.contains("exception in thread \"main\"")) {
+            return false;
+        }
+        
+        // 识别maven打包成功
+        if (line.contains("build success")) {
+            return true;
+        }
+        
+        // 识别springboot启动成功
+        if (line.contains("started application in") || 
+            line.contains("tomcat started on port(s)")) {
+            return true;
+        }
+        
+        return currentStatus;
+    }
+    
     private boolean checkPort(WebSocketSession wsSession, Session sshSession, int port) {
          for (int i = 0; i < 30; i++) {
              try {
@@ -214,6 +403,7 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
                  String line;
                  while ((line = reader.readLine()) != null) {
                      output += line;
+                     sendMessage(wsSession, line);
                  }
                  channel.disconnect();
                  
@@ -226,6 +416,47 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
              }
          }
          return false;
+    }
+    
+    private boolean checkPortWithLog(WebSocketSession wsSession, Session sshSession, int port, String logFilePath) {
+         for (int i = 0; i < 30; i++) {
+             try {
+                 String cmd = String.format("netstat -tln | grep :%d", port);
+                 ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
+                 channel.setCommand(cmd);
+                 InputStream in = channel.getInputStream();
+                 channel.connect();
+                 
+                 // Read output to determine if port is listening
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                 String output = "";
+                 String line;
+                 while ((line = reader.readLine()) != null) {
+                     output += line;
+                     sendMessage(wsSession, line);
+                     appendToLogFile(sshSession, logFilePath, line + "\n");
+                 }
+                 channel.disconnect();
+                 
+                 if (StrUtil.isNotBlank(output)) {
+                     return true;
+                 }
+                 Thread.sleep(1000);
+             } catch (Exception e) {
+                 // ignore
+             }
+         }
+         return false;
+    }
+    
+    private void appendToLogFile(Session sshSession, String logFilePath, String content) throws Exception {
+        // 使用echo命令将内容追加到日志文件
+        String safeContent = content.replace("'", "\\'"); // 转义单引号
+        String cmd = String.format("echo '%s' >> %s", safeContent, logFilePath);
+        ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
+        channel.setCommand(cmd);
+        channel.connect();
+        channel.disconnect();
     }
 
     private void sendMessage(WebSocketSession session, String message) {

@@ -2,6 +2,25 @@
   <div class="page-container">
     <div class="toolbar">
       <el-button type="primary" @click="handleAdd">新增项目</el-button>
+      <el-form :inline="true" :model="queryForm" style="margin-left: 20px;">
+        <el-form-item label="项目名称">
+          <el-input v-model="queryForm.projectName" placeholder="请输入项目名称" style="width: 150px;" />
+        </el-form-item>
+        <el-form-item label="业务线">
+          <el-input v-model="queryForm.businessLine" placeholder="请输入业务线" style="width: 150px;" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="queryForm.status" placeholder="全部" style="width: 100px;">
+            <el-option label="全部" value="" />
+            <el-option label="启用" value="1" />
+            <el-option label="禁用" value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
     </div>
 
     <el-table :data="tableData" style="width: 100%" v-loading="loading">
@@ -12,7 +31,7 @@
       <el-table-column prop="businessLine" label="业务线" />
       <el-table-column label="状态" width="120">
         <template #default="scope">
-          <el-switch v-model="scope.row.status" active-value="1" inactive-value="0" @change="handleToggleStatus(scope.row)" />
+          <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleStatus(scope.row)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200">
@@ -76,11 +95,34 @@ const form = reactive({
   status: 1
 })
 
+const queryForm = reactive({
+  projectName: '',
+  businessLine: '',
+  status: ''
+})
+
 const fetchData = async () => {
   loading.value = true
   try {
-    const res = await request.get('/project/list')
-    tableData.value = res
+    const params = {}
+    if (queryForm.projectName) params.projectName = queryForm.projectName
+    if (queryForm.businessLine) params.businessLine = queryForm.businessLine
+    if (queryForm.status !== '') params.status = queryForm.status
+    
+    const res = await request.get('/project/list', { params })
+    // 处理状态值，确保是数字类型，避免菜单切换时触发 el-switch 的 change 事件
+    tableData.value = res.map(item => {
+      let statusValue = 0
+      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
+        statusValue = 1
+      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
+        statusValue = 0
+      }
+      return {
+        ...item,
+        status: statusValue
+      }
+    })
   } finally {
     loading.value = false
   }
@@ -130,13 +172,31 @@ const handleDelete = (row) => {
 
 const handleToggleStatus = async (row) => {
   try {
-    await request.put('/project', row)
+    // 确保发送的是数字类型的状态值
+    const updatedRow = {
+      ...row,
+      status: row.status === 1 ? 1 : 0
+    }
+    await request.put('/project', updatedRow)
     ElMessage.success('状态更新成功')
   } catch (e) {
     ElMessage.error('状态更新失败')
     // 恢复原状态
     row.status = row.status === 1 ? 0 : 1
   }
+}
+
+const handleSearch = () => {
+  fetchData()
+}
+
+const handleReset = () => {
+  Object.assign(queryForm, {
+    projectName: '',
+    businessLine: '',
+    status: ''
+  })
+  fetchData()
 }
 
 onMounted(fetchData)

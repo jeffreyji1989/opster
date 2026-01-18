@@ -23,8 +23,12 @@ public class ServerController {
      * 获取所有服务器
      */
     @GetMapping("/list")
-    public List<Server> list() {
-        return serverService.findAll();
+    public List<Server> list(
+            @RequestParam(required = false) String ip,
+            @RequestParam(required = false) String groupName,
+            @RequestParam(required = false) String env,
+            @RequestParam(required = false) Integer status) {
+        return serverService.findList(ip, groupName, env, status);
     }
 
     /**

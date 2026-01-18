@@ -1,6 +1,8 @@
 package com.opster.module.service.entity;
 
 import com.opster.common.BaseEntity;
+import com.opster.common.enums.RunStatus;
+import com.opster.common.enums.Status;
 import jakarta.persistence.*;
 
 /**
@@ -57,16 +59,18 @@ public class AppService extends BaseEntity {
     private String logPath;
 
     /**
-     * 服务状态: 0-未启动 1-正常 2-异常
+     * 运行状态: 0-未启动 1-正常 2-异常
      */
-    @Column(name = "status")
-    private Integer status;
+    @Column(name = "run_status")
+    @Enumerated(EnumType.ORDINAL)
+    private RunStatus runStatus;
 
     /**
      * 是否启用: 0-禁用 1-启用
      */
-    @Column(name = "enabled", nullable = false, columnDefinition = "INTEGER DEFAULT 1")
-    private Integer enabled;
+    @Column(name = "status", nullable = false, columnDefinition = "INTEGER DEFAULT 1")
+    @Enumerated(EnumType.ORDINAL)
+    private Status status;
 
     /**
      * maven命令
@@ -150,20 +154,20 @@ public class AppService extends BaseEntity {
         this.logPath = logPath;
     }
 
-    public Integer getStatus() {
+    public RunStatus getRunStatus() {
+        return runStatus;
+    }
+
+    public void setRunStatus(RunStatus runStatus) {
+        this.runStatus = runStatus;
+    }
+
+    public Status getStatus() {
         return status;
     }
 
-    public void setStatus(Integer status) {
+    public void setStatus(Status status) {
         this.status = status;
-    }
-
-    public Integer getEnabled() {
-        return enabled;
-    }
-
-    public void setEnabled(Integer enabled) {
-        this.enabled = enabled;
     }
 
     public String getMavenCmd() {

@@ -1,6 +1,7 @@
 package com.opster.module.server.entity;
 
 import com.opster.common.BaseEntity;
+import com.opster.common.enums.Status;
 import jakarta.persistence.*;
 
 /**
@@ -54,7 +55,8 @@ public class Server extends BaseEntity {
      * 状态: 0-禁用 1-启用
      */
     @Column(name = "status")
-    private Integer status;
+    @Enumerated(EnumType.ORDINAL)
+    private Status status;
 
     /**
      * 部署项目个数
@@ -118,11 +120,11 @@ public class Server extends BaseEntity {
         this.env = env;
     }
 
-    public Integer getStatus() {
+    public Status getStatus() {
         return status;
     }
 
-    public void setStatus(Integer status) {
+    public void setStatus(Status status) {
         this.status = status;
     }
 

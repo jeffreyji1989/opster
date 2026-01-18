@@ -2,6 +2,46 @@
   <div class="page-container">
     <div class="toolbar">
       <el-button type="primary" @click="handleAdd">新增服务</el-button>
+      <el-form :inline="true" :model="queryForm" style="margin-left: 20px;">
+        <el-form-item label="项目名称">
+          <el-select v-model="queryForm.projectId" placeholder="全部" style="width: 150px;">
+            <el-option label="全部" value="" />
+            <el-option v-for="item in projects" :key="item.id" :label="item.projectName" :value="item.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="业务线">
+          <el-select v-model="queryForm.businessLine" placeholder="全部" style="width: 150px;">
+            <el-option label="全部" value="" />
+            <el-option v-for="item in businessLines" :key="item" :label="item" :value="item" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="环境">
+          <el-select v-model="queryForm.env" placeholder="全部" style="width: 100px;">
+            <el-option label="全部" value="" />
+            <el-option label="测试" value="测试" />
+            <el-option label="正式" value="生产" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="运行状态">
+          <el-select v-model="queryForm.runStatus" placeholder="全部" style="width: 120px;">
+            <el-option label="全部" value="" />
+            <el-option label="未启动" value="0" />
+            <el-option label="正常" value="1" />
+            <el-option label="异常" value="2" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="启用状态">
+          <el-select v-model="queryForm.status" placeholder="全部" style="width: 100px;">
+            <el-option label="全部" value="" />
+            <el-option label="启用" value="1" />
+            <el-option label="禁用" value="0" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
+        </el-form-item>
+      </el-form>
     </div>
 
     <el-table :data="tableData" style="width: 100%" v-loading="loading">
@@ -21,22 +61,22 @@
       <el-table-column prop="gitBranch" label="分支" width="100" />
       <el-table-column prop="deployPath" label="部署路径" show-overflow-tooltip />
       <el-table-column prop="monitorUrl" label="监控地址" show-overflow-tooltip />
-      <el-table-column prop="status" label="运行状态" width="100">
+      <el-table-column prop="runStatus" label="运行状态" width="100">
         <template #default="scope">
-          <el-tag :type="getStatusType(scope.row.status)">
-            {{ getStatusText(scope.row.status) }}
+          <el-tag :type="getStatusType(scope.row.runStatus)">
+            {{ getStatusText(scope.row.runStatus) }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column label="启用状态" width="120">
         <template #default="scope">
-          <el-switch v-model="scope.row.enabled" active-value="1" inactive-value="0" @change="handleToggleEnabled(scope.row)" />
+          <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleEnabled(scope.row)" />
         </template>
       </el-table-column>
       <el-table-column label="操作" min-width="350">
         <template #default="scope">
           <el-button-group>
-            <el-button size="small" type="primary" @click="handleAction(scope.row, 'compile-restart')">编译重启</el-button>
+            <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
             <el-button size="small" type="warning" @click="handleAction(scope.row, 'restart')">重启</el-button>
             <el-button size="small" type="success" @click="handleAction(scope.row, 'start')">启动</el-button>
             <el-button size="small" type="info" @click="handleLog(scope.row)">日志</el-button>
@@ -89,7 +129,7 @@
           <el-input v-model="form.monitorUrl" placeholder="请输入监控地址" />
         </el-form-item>
         <el-form-item label="启用状态">
-          <el-switch v-model="form.enabled" active-value="1" inactive-value="0" />
+          <el-switch v-model="form.enabled" :active-value="1" :inactive-value="0" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -133,6 +173,15 @@ const loading = ref(false)
 const tableData = ref([])
 const projects = ref([])
 const servers = ref([])
+const businessLines = ref([])
+
+const queryForm = reactive({
+  projectId: '',
+  businessLine: '',
+  env: '',
+  runStatus: '',
+  status: ''
+})
 
 const dialogVisible = ref(false)
 const logVisible = ref(false)
@@ -154,8 +203,8 @@ const form = reactive({
   mavenCmd: 'mvn clean package -DskipTests',
   startScript: './start.sh',
   monitorUrl: '',
-  status: 0,
-  enabled: 1
+  runStatus: 0,
+  status: 1
 })
 
 const getStatusType = (status) => {
@@ -181,14 +230,71 @@ const getServerName = (id) => {
 const fetchData = async () => {
   loading.value = true
   try {
+    // 构建查询参数
+    const params = {}
+    if (queryForm.projectId !== '') params.projectId = queryForm.projectId
+    if (queryForm.businessLine) params.businessLine = queryForm.businessLine
+    if (queryForm.env !== '') params.env = queryForm.env
+    if (queryForm.runStatus !== '') params.runStatus = queryForm.runStatus
+    if (queryForm.status !== '') params.status = queryForm.status
+    
+    // 并行请求数据
     const [serviceRes, projectRes, serverRes] = await Promise.all([
-      request.get('/service/list'),
+      request.get('/service/list', { params }),
       request.get('/project/list'),
       request.get('/server/list')
     ])
-    tableData.value = serviceRes
-    projects.value = projectRes
-    servers.value = serverRes
+    
+    // 处理服务数据的状态值，确保是数字类型，避免菜单切换时触发 el-switch 的 change 事件
+    tableData.value = serviceRes.map(item => {
+      let statusValue = 0
+      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
+        statusValue = 1
+      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
+        statusValue = 0
+      }
+      return {
+        ...item,
+        status: statusValue
+      }
+    })
+    
+    // 处理项目数据的状态值
+    projects.value = projectRes.map(item => {
+      let statusValue = 0
+      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
+        statusValue = 1
+      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
+        statusValue = 0
+      }
+      return {
+        ...item,
+        status: statusValue
+      }
+    })
+    
+    // 处理服务器数据的状态值
+    servers.value = serverRes.map(item => {
+      let statusValue = 0
+      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
+        statusValue = 1
+      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
+        statusValue = 0
+      }
+      return {
+        ...item,
+        status: statusValue
+      }
+    })
+    
+    // 提取业务线列表（去重）
+    const lines = new Set()
+    projects.value.forEach(project => {
+      if (project.businessLine) {
+        lines.add(project.businessLine)
+      }
+    })
+    businessLines.value = Array.from(lines)
   } finally {
     loading.value = false
   }
@@ -250,13 +356,28 @@ const handleToggleEnabled = async (row) => {
   } catch (e) {
     ElMessage.error('状态更新失败')
     // 恢复原状态
-    row.enabled = row.enabled === 1 ? 0 : 1
+    row.status = row.status === 1 ? 0 : 1
   }
+}
+
+const handleSearch = () => {
+  fetchData()
+}
+
+const handleReset = () => {
+  Object.assign(queryForm, {
+    projectId: '',
+    businessLine: '',
+    env: '',
+    runStatus: '',
+    status: ''
+  })
+  fetchData()
 }
 
 const handleAction = (row, action) => {
   const actionNames = {
-    'compile-restart': '编译并重启',
+    'deploy': '发版',
     'restart': '重启',
     'start': '启动'
   }

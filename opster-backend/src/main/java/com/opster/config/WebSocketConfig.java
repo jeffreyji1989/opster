@@ -13,16 +13,19 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 public class WebSocketConfig implements WebSocketConfigurer {
 
     @Autowired
-    private LogWebSocketHandler logWebSocketHandler;
+    private ExecWebSocketHandler execWebSocketHandler;
 
     @Autowired
-    private ExecWebSocketHandler execWebSocketHandler;
+    private LogWebSocketHandler logWebSocketHandler;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        registry.addHandler(logWebSocketHandler, "/ws/log/{serviceId}")
+        // 注册 ExecWebSocketHandler
+        registry.addHandler(execWebSocketHandler, "/ws/exec/**")
                 .setAllowedOrigins("*");
-        registry.addHandler(execWebSocketHandler, "/ws/exec/{serviceId}/{action}")
+        
+        // 注册 LogWebSocketHandler
+        registry.addHandler(logWebSocketHandler, "/ws/log/**")
                 .setAllowedOrigins("*");
     }
 }

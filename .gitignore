@@ -1,6 +1,9 @@
 # Compiled class file
 *.class
 
+.idea/
+.target/
+
 # Log file
 *.log
 
@@ -12205,3 +12208,9 @@ opster-frontend/node_modules/vue-router/dist/experimental/index.d.mts
 opster-frontend/node_modules/vue-router/dist/experimental/index.mjs
 opster-frontend/node_modules/vue-router/vetur/attributes.json
 opster-frontend/node_modules/vue-router/vetur/tags.json
+opster-backend/target/consumer-125087828931271626.pom
+opster-backend/target/consumer-7218596001659903442.pom
+opster-backend/target/consumer-7285571690430701179.pom
+opster-backend/target/consumer-12976631979752212610.pom
+opster-backend/target/consumer-13513683053511878821.pom
+opster-backend/target/consumer-14589160053854087740.pom

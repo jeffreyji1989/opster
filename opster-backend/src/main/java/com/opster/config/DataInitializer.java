@@ -1,5 +1,6 @@
 package com.opster.config;
 
+import com.opster.common.enums.Status;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
@@ -25,7 +26,7 @@ public class DataInitializer {
                 p1.setProjectOwner("Admin");
                 p1.setGitUrl("https://github.com/opster/backend");
                 p1.setBusinessLine("Infrastructure");
-                p1.setStatus(1);
+                p1.setStatus(Status.DISABLED);
                 projectRepository.save(p1);
 
                 Project p2 = new Project();
@@ -33,7 +34,7 @@ public class DataInitializer {
                 p2.setProjectOwner("Admin");
                 p2.setGitUrl("https://github.com/opster/frontend");
                 p2.setBusinessLine("Infrastructure");
-                p2.setStatus(1);
+                p2.setStatus(Status.DISABLED);
                 projectRepository.save(p2);
             }
 
@@ -44,7 +45,7 @@ public class DataInitializer {
                 s1.setAlias("App Server 01");
                 s1.setUsername("opuser");
                 s1.setEnv("prod");
-                s1.setStatus(1);
+                s1.setStatus(Status.ENABLED);
                 serverRepository.save(s1);
 
                 Server s2 = new Server();
@@ -52,7 +53,7 @@ public class DataInitializer {
                 s2.setAlias("App Server 02");
                 s2.setUsername("opuser");
                 s2.setEnv("test");
-                s2.setStatus(1);
+                s2.setStatus(Status.ENABLED);
                 serverRepository.save(s2);
             }
 
@@ -67,7 +68,7 @@ public class DataInitializer {
                 service.setGitBranch("main");
                 service.setDeployPath("/data/apps/opster-backend");
                 service.setLogPath("/data/logs/opster/app.log");
-                service.setStatus(1);
+                service.setStatus(Status.ENABLED);
                 service.setMavenCmd("mvn clean package");
                 service.setStartScript("./start.sh");
                 appServiceRepository.save(service);

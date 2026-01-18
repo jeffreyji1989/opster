@@ -10,6 +10,7 @@ import java.util.Optional;
 
 public interface AppServiceService {
     List<AppService> findAll();
+    List<AppService> findList(Integer projectId, String businessLine, String env, Integer runStatus, Integer status);
     Page<AppService> findPage(Pageable pageable);
     Optional<AppService> findById(Integer id);
     AppService save(AppService service);

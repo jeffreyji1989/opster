@@ -1,16 +1,20 @@
 package com.opster.module.server.service.impl;
 
+import com.opster.common.enums.Status;
 import com.opster.module.server.entity.Server;
 import com.opster.module.server.repository.ServerRepository;
 import com.opster.module.server.service.ServerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import jakarta.persistence.criteria.Predicate;
 
 @Service
 @Transactional
@@ -22,6 +26,33 @@ public class ServerServiceImpl implements ServerService {
     @Override
     public List<Server> findAll() {
         return serverRepository.findAll();
+    }
+
+    @Override
+    public List<Server> findList(String ip, String groupName, String env, Integer status) {
+        Specification<Server> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            if (ip != null && !ip.isEmpty()) {
+                predicates.add(cb.like(root.get("ip"), "%" + ip + "%"));
+            }
+            
+            if (groupName != null && !groupName.isEmpty()) {
+                predicates.add(cb.like(root.get("groupName"), "%" + groupName + "%"));
+            }
+            
+            if (env != null && !env.isEmpty()) {
+                predicates.add(cb.equal(root.get("env"), env));
+            }
+            
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), Status.fromCode(status)));
+            }
+            
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        return serverRepository.findAll(spec);
     }
 
     @Override

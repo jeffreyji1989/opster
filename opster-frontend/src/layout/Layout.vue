@@ -30,6 +30,10 @@
           <el-icon><View /></el-icon>
           <span>项目监控</span>
         </el-menu-item>
+        <el-menu-item index="/deployment-record">
+          <el-icon><Document /></el-icon>
+          <span>发版记录</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
