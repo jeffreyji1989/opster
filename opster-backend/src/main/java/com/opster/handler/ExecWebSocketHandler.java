@@ -197,11 +197,50 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
                         sendMessage(wsSession, copyMessage);
                         appendToLogFile(sshSession, logFilePath, copyMessage + "\n");
                         
-                        String copyCmd = String.format("cp %s/source/target/*.jar %s/", deployPath, deployPath);
-                        isDeploySuccess = executeCommandWithLog(wsSession, sshSession, copyCmd, logFilePath);
-                        if (!isDeploySuccess) {
-                            sendMessage(wsSession, ">>> Jar deployment failed!");
+                        // 备份现有jar文件
+                        String backupMessage = ">>> Backing up existing Jar files...";
+                        sendMessage(wsSession, backupMessage);
+                        appendToLogFile(sshSession, logFilePath, backupMessage + "\n");
+                        
+                        // 执行备份操作
+                        String backupCmd = String.format("bash -c '\n" +
+                            "# 创建bak目录（如果不存在）\n" +
+                            "mkdir -p %s/bak\n" +
+                            "\n" +
+                            "# 检查bak目录是否为空\n" +
+                            "if [ -z \"$(ls -A %s/bak 2>/dev/null)\" ]; then\n" +
+                            "    # 如果bak目录为空，直接复制部署目录下的jar文件到bak目录\n" +
+                            "    echo \"Bak directory is empty, copying current jars...\"\n" +
+                            "    cp -f %s/*.jar %s/bak/ 2>/dev/null || echo \"No jars found to backup\"\n" +
+                            "else\n" +
+                            "    # 如果bak目录不为空，按日期备份原有jar文件\n" +
+                            "    echo \"Bak directory is not empty, backing up with timestamp...\"\n" +
+                            "    timestamp=$(date +\"%%Y%%m%%d%%H%%M%%S\")\n" +
+                            "    for jar in %s/bak/*.jar; do\n" +
+                            "        if [ -f \"$jar\" ]; then\n" +
+                            "            base_name=$(basename \"$jar\")\n" +
+                            "            new_name=\"${base_name%%.jar}_${timestamp}.jar\"\n" +
+                            "            cp -f \"$jar\" \"%s/bak/${new_name}\"\n" +
+                            "            echo \"Backed up $base_name to $new_name\"\n" +
+                            "        fi\n" +
+                            "    done\n" +
+                            "    # 复制当前部署目录下的jar文件到bak目录\n" +
+                            "    cp -f %s/*.jar %s/bak/ 2>/dev/null || echo \"No jars found to backup\"\n" +
+                            "fi\n" +
+                            "'", deployPath, deployPath, deployPath, deployPath, deployPath, deployPath, deployPath, deployPath);
+                        
+                        boolean isBackupSuccess = executeCommandWithLog(wsSession, sshSession, backupCmd, logFilePath);
+                        if (!isBackupSuccess) {
+                            sendMessage(wsSession, ">>> Jar backup failed!");
                             isOverallSuccess = false;
+                        } else {
+                            // 复制新的jar文件到部署目录
+                            String copyCmd = String.format("cp %s/source/target/*.jar %s/", deployPath, deployPath);
+                            isDeploySuccess = executeCommandWithLog(wsSession, sshSession, copyCmd, logFilePath);
+                            if (!isDeploySuccess) {
+                                sendMessage(wsSession, ">>> Jar deployment failed!");
+                                isOverallSuccess = false;
+                            }
                         }
                     }
 
@@ -231,6 +270,55 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
                     if (!isStartSuccess) {
                         sendMessage(wsSession, ">>> Service " + action + " failed!");
                         isOverallSuccess = false;
+                    }
+                } else if ("rollback".equals(action)) {
+                    String rollbackMessage = ">>> Rolling back service...";
+                    sendMessage(wsSession, rollbackMessage);
+                    appendToLogFile(sshSession, logFilePath, rollbackMessage + "\n");
+                    
+                    // 执行版本回退操作
+                    String rollbackCmd = String.format("bash -c '\n" +
+                        "# 查找部署目录下的jar文件\n" +
+                        "deploy_jars=$(ls -1 %s/*.jar 2>/dev/null | head -1)\n" +
+                        "if [ -z \"$deploy_jars\" ]; then\n" +
+                        "    echo \"No jars found in deploy directory\"\n" +
+                        "    exit 1\n" +
+                        "fi\n" +
+                        "\n" +
+                        "# 获取jar文件名\n" +
+                        "jar_name=$(basename \"$deploy_jars\")\n" +
+                        "echo \"Found jar: $jar_name\"\n" +
+                        "\n" +
+                        "# 在bak目录中查找相同名字的文件\n" +
+                        "bak_jar=%s/bak/$jar_name\n" +
+                        "if [ ! -f \"$bak_jar\" ]; then\n" +
+                        "    echo \"No backup found for $jar_name\"\n" +
+                        "    exit 1\n" +
+                        "fi\n" +
+                        "\n" +
+                        "# 将bak目录中的文件覆盖到部署目录\n" +
+                        "echo \"Rolling back $jar_name from backup\"\n" +
+                        "cp -f \"$bak_jar\" \"%s/\"\n" +
+                        "echo \"Rollback completed\"\n" +
+                        "'", deployPath, deployPath, deployPath);
+                    
+                    boolean isRollbackSuccess = executeCommandWithLog(wsSession, sshSession, rollbackCmd, logFilePath);
+                    if (!isRollbackSuccess) {
+                        sendMessage(wsSession, ">>> Rollback failed!");
+                        isOverallSuccess = false;
+                    } else {
+                        // 重启服务
+                        String restartMessage = ">>> Restarting service after rollback...";
+                        sendMessage(wsSession, restartMessage);
+                        appendToLogFile(sshSession, logFilePath, restartMessage + "\n");
+                        
+                        String startScript = service.getStartScript();
+                        String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, deployPath, startScript);
+                        isStartSuccess = executeCommandWithLog(wsSession, sshSession, restartCmd, logFilePath);
+                        if (!isStartSuccess) {
+                            sendMessage(wsSession, ">>> Service restart failed after rollback!");
+                            isOverallSuccess = false;
+                        }
                     }
                 }
 

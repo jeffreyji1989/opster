@@ -80,6 +80,7 @@
             <el-button size="small" type="warning" @click="handleAction(scope.row, 'restart')">重启</el-button>
             <el-button size="small" type="success" @click="handleAction(scope.row, 'start')">启动</el-button>
             <el-button size="small" type="info" @click="handleLog(scope.row)">日志</el-button>
+            <el-button size="small" type="danger" @click="handleRollback(scope.row)">版本回退</el-button>
           </el-button-group>
           <el-divider direction="vertical" />
           <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
@@ -512,6 +513,67 @@ watch(logVisible, (val) => {
     logSocket.value = null
   }
 })
+
+// 版本回退处理函数
+const handleRollback = (row) => {
+  ElMessageBox.confirm('确认要执行版本回退操作吗?', '警告', {
+    confirmButtonText: '确认回退',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    // Open Result Dialog immediately
+    resultContent.value = `正在连接 WebSocket 执行版本回退...\n`
+    resultStatus.value = 'success'
+    resultVisible.value = true
+    
+    // Connect WebSocket for Execution
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.hostname
+    const port = '8080' // Backend port
+    const wsUrl = `${protocol}//${host}:${port}/ws/exec/${row.id}/rollback`
+    
+    let socket = null
+    try {
+      socket = new WebSocket(wsUrl)
+      
+      socket.onopen = () => {
+        resultContent.value += '>>> 连接成功，开始执行版本回退...\n'
+      }
+      
+      socket.onmessage = (event) => {
+        resultContent.value += event.data + '\n'
+        // Auto scroll
+        setTimeout(() => {
+          const els = document.querySelectorAll('.log-content')
+          if (els.length > 0) {
+             els.forEach(el => el.scrollTop = el.scrollHeight)
+          }
+        }, 0)
+      }
+      
+      socket.onerror = (error) => {
+        console.error('WebSocket Error:', error)
+        resultContent.value += '\n>>> 连接发生错误'
+        resultStatus.value = 'error'
+      }
+      
+      socket.onclose = () => {
+        resultContent.value += '\n>>> 版本回退执行结束 (连接已断开)'
+        // Refresh status after execution
+        fetchData()
+      }
+      
+      // Store socket instance
+      execSocket.value = socket
+      
+    } catch (e) {
+      console.error(e)
+      resultContent.value += '\n无法建立连接: ' + e.message
+      resultStatus.value = 'error'
+    }
+
+  }).catch(() => {})
+}
 
 onMounted(fetchData)
 </script>
