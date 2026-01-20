@@ -12357,3 +12357,4 @@ opster-frontend/node_modules/xterm-addon-search/lib/xterm-addon-search.js
 opster-frontend/node_modules/xterm-addon-search/lib/xterm-addon-search.js.map
 opster-frontend/node_modules/xterm-addon-search/src/SearchAddon.ts
 opster-frontend/node_modules/xterm-addon-search/typings/xterm-addon-search.d.ts
+.DS_Store
