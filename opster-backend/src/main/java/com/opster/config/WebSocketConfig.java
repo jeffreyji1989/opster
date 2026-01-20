@@ -2,6 +2,7 @@ package com.opster.config;
 
 import com.opster.handler.ExecWebSocketHandler;
 import com.opster.handler.LogWebSocketHandler;
+import com.opster.handler.TerminalWebSocketHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
@@ -18,6 +19,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Autowired
     private LogWebSocketHandler logWebSocketHandler;
 
+    @Autowired
+    private TerminalWebSocketHandler terminalWebSocketHandler;
+
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         // 注册 ExecWebSocketHandler
@@ -26,6 +30,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
         
         // 注册 LogWebSocketHandler
         registry.addHandler(logWebSocketHandler, "/ws/log/**")
+                .setAllowedOrigins("*");
+        
+        // 注册 TerminalWebSocketHandler
+        registry.addHandler(terminalWebSocketHandler, "/ws/terminal/**")
                 .setAllowedOrigins("*");
     }
 }

@@ -18,6 +18,20 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: true
+  
+  # Spring AI Alibaba Configuration
+  ai:
+    dashscope:
+      api-key: sk-6ad8e18d14f9489899f003c7675af61c
+#      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      chat:
+        options:
+          model: qwen-plus
+        enabled: true
+      embedding:
+        options:
+          model: text-embedding-v1
+        enabled: false
 
 opster:
   maven-home: /home/soft/apache-maven-4.0.0
