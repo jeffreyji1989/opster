@@ -203,8 +203,17 @@
                   :value="cmd"
                   size="small"
                   readonly
+                  :class="{ 'danger-command': !isSafeCommand(cmd) }"
                 />
-                <el-button size="small" type="primary" @click="sendCommandToTerminal(cmd)">执行</el-button>
+                <el-button 
+                  v-if="isSafeCommand(cmd)"
+                  size="small" 
+                  type="primary" 
+                  @click="sendCommandToTerminal(cmd)"
+                >
+                  执行
+                </el-button>
+                <span v-else class="danger-warning">危险命令谨慎操作</span>
               </div>
             </div>
           </div>
@@ -781,6 +790,9 @@ const initTerminal = () => {
 const sendChatMessage = async () => {
   if (!chatInput.value.trim()) return
   
+  // Clear history chat messages before sending new one
+  chatMessages.value = []
+  
   // Add user message to chat
   chatMessages.value.push({
     type: 'user',
@@ -825,6 +837,14 @@ const sendChatMessage = async () => {
   }
   
   chatInput.value = ''
+}
+
+// 安全命令白名单（只读/无害命令）
+const SAFE_COMMANDS = /^(ls|pwd|whoami|date|echo|cat|head|tail|grep|ps|df|du|free|top|uname|hostname|id|which|man)$/
+
+function isSafeCommand(command) {
+  const simpleCmd = command.trim().split(/\s+/)[0]
+  return SAFE_COMMANDS.test(simpleCmd)
 }
 
 // Send command to terminal
@@ -991,6 +1011,17 @@ onMounted(fetchData)
 
 .command-item .el-input {
   flex: 1;
+}
+
+.danger-command :deep(.el-input__wrapper) {
+  border-color: #f56c6c;
+  background-color: #fef0f0;
+}
+
+.danger-warning {
+  color: #f56c6c;
+  font-size: 12px;
+  font-weight: bold;
 }
 
 /* Terminal */

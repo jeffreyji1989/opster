@@ -48,13 +48,13 @@ public class TerminalController {
                 commands.add("echo \"Hello, World!\"");
                 commands.add("pwd");
                 commands.add("whoami");
-            } else if (commands.size() < 3) {
-                while (commands.size() < 3) {
+            } else if (commands.size() < 5) {
+                while (commands.size() < 5) {
                     commands.add("echo \"Command not found\"");
                 }
-            } else if (commands.size() > 3) {
-                // 如果AI返回的命令超过3个，只取前3个
-                commands = commands.subList(0, 3);
+            } else if (commands.size() > 5) {
+                // 如果AI返回的命令超过5个，只取前5个
+                commands = commands.subList(0, 5);
             }
         } catch (Exception e) {
             // 异常情况下返回默认命令

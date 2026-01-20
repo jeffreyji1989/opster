@@ -37,7 +37,7 @@ public class LinuxCommandAIService {
     }
     
     private String buildUserPrompt(String description) {
-        return "你是一个Linux命令专家，请根据用户的描述生成3个最相关的Linux命令。\n" +
+        return "你是一个Linux命令专家，请根据用户的描述生成5个最相关的Linux命令。\n" +
                     "用户描述：" + description + "\n" +
                     "要求：\n" +
                     "1. 只返回命令本身，不要包含任何解释或说明\n" +
