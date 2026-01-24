@@ -191,19 +191,20 @@ public class AppServiceServiceImpl implements AppServiceService {
                 .map(service -> {
                     Map<String, Object> map = new HashMap<>();
                     map.put("id", service.getId());
-                    map.put("status", service.getStatus());
+                    // 使用 runStatus（运行状态）而非 status（启用状态）
+                    map.put("status", service.getRunStatus() != null ? service.getRunStatus().getCode() : RunStatus.NOT_STARTED.getCode());
                     map.put("updateTime", service.getUpdateTime());
-                    
+
                     projectRepository.findById(service.getProjectId()).ifPresent(p -> {
                         map.put("projectName", p.getProjectName());
                         map.put("monitorUrl", p.getMonitorUrl());
                     });
-                    
+
                     serverRepository.findById(service.getServerId()).ifPresent(s -> {
                         map.put("serverIp", s.getIp());
                         map.put("serverAlias", s.getAlias());
                     });
-                    
+
                     return map;
                 })
                 .collect(Collectors.toList());

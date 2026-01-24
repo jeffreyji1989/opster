@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# 特定规则
+- 所有回复都必须是中文
+- 所有代码都必须是中文注释
+- 所有给出的执行计划都存储到 `plan.md` 文件中
+- 所有的sql变更都存储到 `db/changelog` 目录下,新生成的表或者字段的变更都必须在sql文件中进行记录
+
 ## 项目概述
 
 **Opster** 是一个全栈运维管理系统,用于服务器管理、服务部署和监控。
