@@ -2,11 +2,16 @@ package com.opster.module.project.entity;
 
 import com.opster.common.BaseEntity;
 import com.opster.common.enums.Status;
+import com.opster.module.project.convert.RepositoriesConverter;
+import com.opster.module.project.dto.RepositoryDTO;
 import jakarta.persistence.*;
+
+import java.util.List;
 
 /**
  * 项目实体类
  */
+@Data
 @Entity
 @Table(name = "project")
 public class Project extends BaseEntity {
@@ -28,10 +33,11 @@ public class Project extends BaseEntity {
     private String projectOwner;
 
     /**
-     * 项目git地址
+     * 项目 Git 仓库列表（JSON 格式存储）
      */
-    @Column(name = "git_url")
-    private String gitUrl;
+    @Column(name = "repositories", columnDefinition = "TEXT")
+    @Convert(converter = RepositoriesConverter.class)
+    private List<RepositoryDTO> repositories;
 
     /**
      * 项目监控地址
@@ -76,12 +82,12 @@ public class Project extends BaseEntity {
         this.projectOwner = projectOwner;
     }
 
-    public String getGitUrl() {
-        return gitUrl;
+    public List<RepositoryDTO> getRepositories() {
+        return repositories;
     }
 
-    public void setGitUrl(String gitUrl) {
-        this.gitUrl = gitUrl;
+    public void setRepositories(List<RepositoryDTO> repositories) {
+        this.repositories = repositories;
     }
 
     public String getMonitorUrl() {

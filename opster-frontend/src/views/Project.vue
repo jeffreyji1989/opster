@@ -27,15 +27,20 @@
       <el-table-column prop="id" label="ID" width="80" />
       <el-table-column prop="projectName" label="项目名称" />
       <el-table-column prop="projectOwner" label="负责人" />
-      <el-table-column prop="gitUrl" label="Git地址" show-overflow-tooltip />
+      <el-table-column label="Git 仓库" width="120">
+        <template #default="{ row }">
+          <el-tag>{{ row.repositories?.length || 0 }} 个仓库</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="businessLine" label="业务线" />
       <el-table-column label="状态" width="120">
         <template #default="scope">
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleStatus(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200">
+      <el-table-column label="操作" width="280">
         <template #default="scope">
+          <el-button size="small" @click="handleViewRepositories(scope.row)">查看仓库</el-button>
           <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
           <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
         </template>
@@ -43,7 +48,7 @@
     </el-table>
 
     <!-- Dialog -->
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'" width="700px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="项目名称">
           <el-input v-model="form.projectName" />
@@ -51,8 +56,27 @@
         <el-form-item label="负责人">
           <el-input v-model="form.projectOwner" />
         </el-form-item>
-        <el-form-item label="Git地址">
-          <el-input v-model="form.gitUrl" />
+        <el-form-item label="Git 仓库">
+          <div v-for="(repo, index) in form.repositories" :key="index" class="repo-row">
+            <el-select v-model="repo.type" placeholder="类型" style="width: 120px">
+              <el-option label="前端" :value="0" />
+              <el-option label="后端" :value="1" />
+              <el-option label="管理后台" :value="2" />
+              <el-option label="移动端" :value="3" />
+            </el-select>
+
+            <el-input v-model="repo.gitUrl" placeholder="Git 地址" style="width: 280px" />
+            <el-input v-model="repo.projectPath" placeholder="项目路径" style="width: 180px" />
+            <el-input v-model="repo.description" placeholder="描述" style="width: 120px" />
+
+            <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain>
+              删除
+            </el-button>
+          </div>
+
+          <el-button @click="addRepository" type="primary" plain style="margin-top: 10px; width: 100%;">
+            + 添加仓库
+          </el-button>
         </el-form-item>
         <el-form-item label="监控地址">
           <el-input v-model="form.monitorUrl" />
@@ -74,6 +98,20 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 仓库详情弹窗 -->
+    <el-dialog v-model="repoDetailVisible" title="仓库详情" width="800px">
+      <el-table :data="currentRepositories" border>
+        <el-table-column prop="type" label="类型" width="100">
+          <template #default="{ row }">
+            {{ getRepositoryTypeLabel(row.type) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="gitUrl" label="Git 地址" show-overflow-tooltip />
+        <el-table-column prop="projectPath" label="项目路径" />
+        <el-table-column prop="description" label="描述" />
+      </el-table>
+    </el-dialog>
   </div>
 </template>
 
@@ -85,11 +123,30 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const loading = ref(false)
 const tableData = ref([])
 const dialogVisible = ref(false)
+const repoDetailVisible = ref(false)
+const currentRepositories = ref([])
+
+// 仓库类型映射
+const repositoryTypeMap = {
+  0: '前端',
+  1: '后端',
+  2: '管理后台',
+  3: '移动端'
+}
+
+// 获取仓库类型标签
+const getRepositoryTypeLabel = (type) => {
+  return repositoryTypeMap[type] || '未知'
+}
+
 const form = reactive({
   id: null,
   projectName: '',
   projectOwner: '',
-  gitUrl: '',
+  repositories: [
+    { type: 0, gitUrl: '', projectPath: '', description: '' },
+    { type: 1, gitUrl: '', projectPath: '', description: '' }
+  ],
   monitorUrl: '',
   businessLine: '',
   status: 1
@@ -108,7 +165,7 @@ const fetchData = async () => {
     if (queryForm.projectName) params.projectName = queryForm.projectName
     if (queryForm.businessLine) params.businessLine = queryForm.businessLine
     if (queryForm.status !== '') params.status = queryForm.status
-    
+
     const res = await request.get('/project/list', { params })
     // 处理状态值，确保是数字类型，避免菜单切换时触发 el-switch 的 change 事件
     tableData.value = res.map(item => {
@@ -118,8 +175,11 @@ const fetchData = async () => {
       } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
         statusValue = 0
       }
+      // 确保 repositories 是数组
+      const repositories = Array.isArray(item.repositories) ? item.repositories : []
       return {
         ...item,
+        repositories,
         status: statusValue
       }
     })
@@ -132,7 +192,10 @@ const handleAdd = () => {
   form.id = null
   form.projectName = ''
   form.projectOwner = ''
-  form.gitUrl = ''
+  form.repositories = [
+    { type: 0, gitUrl: '', projectPath: '', description: '' },
+    { type: 1, gitUrl: '', projectPath: '', description: '' }
+  ]
   form.monitorUrl = ''
   form.businessLine = ''
   form.status = 1
@@ -140,7 +203,15 @@ const handleAdd = () => {
 }
 
 const handleEdit = (row) => {
-  Object.assign(form, row)
+  Object.assign(form, {
+    ...row,
+    repositories: Array.isArray(row.repositories) && row.repositories.length > 0
+      ? JSON.parse(JSON.stringify(row.repositories))
+      : [
+          { type: 0, gitUrl: '', projectPath: '', description: '' },
+          { type: 1, gitUrl: '', projectPath: '', description: '' }
+        ]
+  })
   dialogVisible.value = true
 }
 
@@ -186,6 +257,26 @@ const handleToggleStatus = async (row) => {
   }
 }
 
+const handleViewRepositories = (row) => {
+  currentRepositories.value = Array.isArray(row.repositories) ? row.repositories : []
+  repoDetailVisible.value = true
+}
+
+const addRepository = () => {
+  form.repositories.push({
+    type: '',
+    gitUrl: '',
+    projectPath: '',
+    description: ''
+  })
+}
+
+const removeRepository = (index) => {
+  if (form.repositories.length > 1) {
+    form.repositories.splice(index, 1)
+  }
+}
+
 const handleSearch = () => {
   fetchData()
 }
@@ -205,5 +296,17 @@ onMounted(fetchData)
 <style scoped>
 .toolbar {
   margin-bottom: 20px;
+}
+
+.repo-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.repo-row .el-select,
+.repo-row .el-input {
+  flex-shrink: 0;
 }
 </style>
