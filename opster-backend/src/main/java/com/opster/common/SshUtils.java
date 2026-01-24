@@ -14,6 +14,7 @@ import java.util.Properties;
 /**
  * SSH 工具类
  */
+@Slf4j
 public class SshUtils {
 
     /**
@@ -22,7 +23,9 @@ public class SshUtils {
     public static Session connect(String host, int port, String user, String password) throws Exception {
         JSch jsch = new JSch();
         Session session = jsch.getSession(user, host, port);
-        session.setPassword(password);
+        // 解密密码
+        String decryptedPassword = SecurityUtils.decrypt(password);
+        session.setPassword(decryptedPassword);
 
         Properties config = new Properties();
         config.put("StrictHostKeyChecking", "no");

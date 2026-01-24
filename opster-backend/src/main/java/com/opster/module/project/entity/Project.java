@@ -5,6 +5,8 @@ import com.opster.common.enums.Status;
 import com.opster.module.project.convert.RepositoriesConverter;
 import com.opster.module.project.dto.RepositoryDTO;
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.List;
 
@@ -12,6 +14,7 @@ import java.util.List;
  * 项目实体类
  */
 @Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "project")
 public class Project extends BaseEntity {
@@ -57,60 +60,4 @@ public class Project extends BaseEntity {
     @Column(name = "status")
     @Enumerated(EnumType.ORDINAL)
     private Status status;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getProjectName() {
-        return projectName;
-    }
-
-    public void setProjectName(String projectName) {
-        this.projectName = projectName;
-    }
-
-    public String getProjectOwner() {
-        return projectOwner;
-    }
-
-    public void setProjectOwner(String projectOwner) {
-        this.projectOwner = projectOwner;
-    }
-
-    public List<RepositoryDTO> getRepositories() {
-        return repositories;
-    }
-
-    public void setRepositories(List<RepositoryDTO> repositories) {
-        this.repositories = repositories;
-    }
-
-    public String getMonitorUrl() {
-        return monitorUrl;
-    }
-
-    public void setMonitorUrl(String monitorUrl) {
-        this.monitorUrl = monitorUrl;
-    }
-
-    public String getBusinessLine() {
-        return businessLine;
-    }
-
-    public void setBusinessLine(String businessLine) {
-        this.businessLine = businessLine;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
 }

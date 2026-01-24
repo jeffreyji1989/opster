@@ -67,6 +67,12 @@ public class ServerServiceImpl implements ServerService {
 
     @Override
     public Server save(Server server) {
+        if (server.getPassword() != null && !server.getPassword().isEmpty()) {
+            // 如果不是加密过的，说明是明文，需要加密
+            if (!com.opster.common.SecurityUtils.isEncrypted(server.getPassword())) {
+                server.setPassword(com.opster.common.SecurityUtils.encrypt(server.getPassword()));
+            }
+        }
         return serverRepository.save(server);
     }
 

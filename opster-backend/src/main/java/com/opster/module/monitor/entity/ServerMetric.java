@@ -2,11 +2,15 @@ package com.opster.module.monitor.entity;
 
 import com.opster.common.BaseEntity;
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import java.time.LocalDateTime;
 
 /**
  * 服务器监控指标实体
  */
+@Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "server_metric")
 public class ServerMetric extends BaseEntity {
@@ -56,68 +60,4 @@ public class ServerMetric extends BaseEntity {
      */
     @Column(name = "record_time")
     private LocalDateTime recordTime;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Integer getServerId() {
-        return serverId;
-    }
-
-    public void setServerId(Integer serverId) {
-        this.serverId = serverId;
-    }
-
-    public Double getCpuUsage() {
-        return cpuUsage;
-    }
-
-    public void setCpuUsage(Double cpuUsage) {
-        this.cpuUsage = cpuUsage;
-    }
-
-    public Long getMemoryTotal() {
-        return memoryTotal;
-    }
-
-    public void setMemoryTotal(Long memoryTotal) {
-        this.memoryTotal = memoryTotal;
-    }
-
-    public Long getMemoryUsed() {
-        return memoryUsed;
-    }
-
-    public void setMemoryUsed(Long memoryUsed) {
-        this.memoryUsed = memoryUsed;
-    }
-
-    public Double getMemoryUsage() {
-        return memoryUsage;
-    }
-
-    public void setMemoryUsage(Double memoryUsage) {
-        this.memoryUsage = memoryUsage;
-    }
-
-    public String getDiskUsageJson() {
-        return diskUsageJson;
-    }
-
-    public void setDiskUsageJson(String diskUsageJson) {
-        this.diskUsageJson = diskUsageJson;
-    }
-
-    public LocalDateTime getRecordTime() {
-        return recordTime;
-    }
-
-    public void setRecordTime(LocalDateTime recordTime) {
-        this.recordTime = recordTime;
-    }
 }

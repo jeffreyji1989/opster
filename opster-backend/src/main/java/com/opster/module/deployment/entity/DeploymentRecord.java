@@ -3,10 +3,14 @@ package com.opster.module.deployment.entity;
 import com.opster.common.BaseEntity;
 import com.opster.common.enums.DeploymentStatus;
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 部署记录实体类
  */
+@Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "deployment_record")
 public class DeploymentRecord extends BaseEntity {
@@ -69,84 +73,4 @@ public class DeploymentRecord extends BaseEntity {
      */
     @Column(name = "log_path", columnDefinition = "VARCHAR(255)")
     private String logPath;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Integer getProjectId() {
-        return projectId;
-    }
-
-    public void setProjectId(Integer projectId) {
-        this.projectId = projectId;
-    }
-
-    public String getProjectName() {
-        return projectName;
-    }
-
-    public void setProjectName(String projectName) {
-        this.projectName = projectName;
-    }
-
-    public Integer getServerId() {
-        return serverId;
-    }
-
-    public void setServerId(Integer serverId) {
-        this.serverId = serverId;
-    }
-
-    public String getServerIp() {
-        return serverIp;
-    }
-
-    public void setServerIp(String serverIp) {
-        this.serverIp = serverIp;
-    }
-
-    public String getServerAlias() {
-        return serverAlias;
-    }
-
-    public void setServerAlias(String serverAlias) {
-        this.serverAlias = serverAlias;
-    }
-
-    public Integer getServiceId() {
-        return serviceId;
-    }
-
-    public void setServiceId(Integer serviceId) {
-        this.serviceId = serviceId;
-    }
-
-    public String getServiceName() {
-        return serviceName;
-    }
-
-    public void setServiceName(String serviceName) {
-        this.serviceName = serviceName;
-    }
-
-    public DeploymentStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(DeploymentStatus status) {
-        this.status = status;
-    }
-
-    public String getLogPath() {
-        return logPath;
-    }
-
-    public void setLogPath(String logPath) {
-        this.logPath = logPath;
-    }
 }

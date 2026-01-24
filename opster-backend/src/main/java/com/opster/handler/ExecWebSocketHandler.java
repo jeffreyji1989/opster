@@ -7,8 +7,10 @@ import com.opster.common.SshUtils;
 import com.opster.common.enums.RunStatus;
 import com.opster.common.enums.Status;
 import com.opster.common.enums.DeploymentStatus;
+import com.opster.common.enums.RepositoryType;
 import com.opster.module.deployment.entity.DeploymentRecord;
 import com.opster.module.deployment.service.DeploymentRecordService;
+import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
@@ -18,6 +20,9 @@ import com.opster.module.service.repository.AppServiceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Optional;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -34,13 +39,11 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Component
 public class ExecWebSocketHandler extends TextWebSocketHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(ExecWebSocketHandler.class);
 
     @Autowired
     private AppServiceRepository appServiceRepository;
@@ -163,17 +166,39 @@ public class ExecWebSocketHandler extends TextWebSocketHandler {
                     String gitMessage = ">>> Checking out source code...";
                     sendMessage(wsSession, gitMessage);
                     appendToLogFile(sshSession, logFilePath, gitMessage + "\n");
+
+                    // 从 repositories 中获取后端项目的 Git 地址
+                    List<RepositoryDTO> repositories = project.getRepositories();
+                    String gitUrl = service.getRepoGitUrl();
                     
-                    String gitUrl = project.getGitUrl();
-                    String branch = service.getGitBranch();
-                    String gitCmd = String.format(
-                        "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",
-                        deployPath, deployPath, branch, deployPath, deployPath, branch, gitUrl
-                    );
-                    isGitSuccess = executeCommandWithLog(wsSession, sshSession, gitCmd, logFilePath);
-                    if (!isGitSuccess) {
-                        sendMessage(wsSession, ">>> Git operation failed!");
+                    if (gitUrl == null || gitUrl.trim().isEmpty()) {
+                        if (repositories != null && !repositories.isEmpty()) {
+                            // 优先获取 BACKEND 类型的仓库，如果没有则获取第一个
+                            Optional<RepositoryDTO> backendRepo = repositories.stream()
+                                .filter(r -> RepositoryType.BACKEND.equals(r.getType()))
+                                .findFirst();
+                            if (backendRepo.isPresent()) {
+                                gitUrl = backendRepo.get().getGitUrl();
+                            } else {
+                                gitUrl = repositories.get(0).getGitUrl();
+                            }
+                        }
+                    }
+
+                    if (gitUrl == null || gitUrl.trim().isEmpty()) {
+                        sendMessage(wsSession, ">>> Error: No Git URL found for this project!");
                         isOverallSuccess = false;
+                    } else {
+                        String branch = service.getGitBranch();
+                        String gitCmd = String.format(
+                            "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",
+                            deployPath, deployPath, branch, deployPath, deployPath, branch, gitUrl
+                        );
+                        isGitSuccess = executeCommandWithLog(wsSession, sshSession, gitCmd, logFilePath);
+                        if (!isGitSuccess) {
+                            sendMessage(wsSession, ">>> Git operation failed!");
+                            isOverallSuccess = false;
+                        }
                     }
 
                     // Maven Build

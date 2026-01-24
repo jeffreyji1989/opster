@@ -60,6 +60,17 @@ public class ServiceController {
     }
 
     /**
+     * 批量新增服务
+     */
+    @PostMapping("/batch")
+    public boolean saveBatch(@RequestBody List<AppService> services) {
+        for (AppService service : services) {
+            appServiceService.save(service);
+        }
+        return true;
+    }
+
+    /**
      * 修改服务
      */
     @PutMapping

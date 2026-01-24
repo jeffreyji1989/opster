@@ -4,10 +4,14 @@ import com.opster.common.BaseEntity;
 import com.opster.common.enums.RunStatus;
 import com.opster.common.enums.Status;
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 服务实体类
  */
+@Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "service")
 public class AppService extends BaseEntity {
@@ -27,6 +31,12 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "project_id", nullable = false)
     private Integer projectId;
+
+    /**
+     * 对应项目的 Git 仓库地址
+     */
+    @Column(name = "repo_git_url")
+    private String repoGitUrl;
 
     /**
      * 项目git分支
@@ -89,108 +99,4 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "monitor_url")
     private String monitorUrl;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Integer getServerId() {
-        return serverId;
-    }
-
-    public void setServerId(Integer serverId) {
-        this.serverId = serverId;
-    }
-
-    public Integer getProjectId() {
-        return projectId;
-    }
-
-    public void setProjectId(Integer projectId) {
-        this.projectId = projectId;
-    }
-
-    public String getGitBranch() {
-        return gitBranch;
-    }
-
-    public void setGitBranch(String gitBranch) {
-        this.gitBranch = gitBranch;
-    }
-
-    public String getDeployPath() {
-        return deployPath;
-    }
-
-    public void setDeployPath(String deployPath) {
-        this.deployPath = deployPath;
-    }
-
-    public String getEnv() {
-        return env;
-    }
-
-    public void setEnv(String env) {
-        this.env = env;
-    }
-
-    public Integer getPort() {
-        return port;
-    }
-
-    public void setPort(Integer port) {
-        this.port = port;
-    }
-
-    public String getLogPath() {
-        return logPath;
-    }
-
-    public void setLogPath(String logPath) {
-        this.logPath = logPath;
-    }
-
-    public RunStatus getRunStatus() {
-        return runStatus;
-    }
-
-    public void setRunStatus(RunStatus runStatus) {
-        this.runStatus = runStatus;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
-    public String getMavenCmd() {
-        return mavenCmd;
-    }
-
-    public void setMavenCmd(String mavenCmd) {
-        this.mavenCmd = mavenCmd;
-    }
-
-    public String getStartScript() {
-        return startScript;
-    }
-
-    public void setStartScript(String startScript) {
-        this.startScript = startScript;
-    }
-
-    public String getMonitorUrl() {
-        return monitorUrl;
-    }
-
-    public void setMonitorUrl(String monitorUrl) {
-        this.monitorUrl = monitorUrl;
-    }
 }

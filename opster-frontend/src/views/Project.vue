@@ -48,7 +48,7 @@
     </el-table>
 
     <!-- Dialog -->
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'" width="700px">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'" width="1000px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="项目名称">
           <el-input v-model="form.projectName" />
@@ -58,16 +58,16 @@
         </el-form-item>
         <el-form-item label="Git 仓库">
           <div v-for="(repo, index) in form.repositories" :key="index" class="repo-row">
-            <el-select v-model="repo.type" placeholder="类型" style="width: 120px">
+            <el-select v-model="repo.type" placeholder="类型" style="width: 110px">
               <el-option label="前端" :value="0" />
               <el-option label="后端" :value="1" />
               <el-option label="管理后台" :value="2" />
               <el-option label="移动端" :value="3" />
             </el-select>
 
-            <el-input v-model="repo.gitUrl" placeholder="Git 地址" style="width: 280px" />
+            <el-input v-model="repo.gitUrl" placeholder="Git 仓库地址" style="width: 300px" />
             <el-input v-model="repo.projectPath" placeholder="项目路径" style="width: 180px" />
-            <el-input v-model="repo.description" placeholder="描述" style="width: 120px" />
+            <el-input v-model="repo.description" placeholder="描述" style="width: 150px" />
 
             <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain>
               删除
@@ -303,10 +303,5 @@ onMounted(fetchData)
   gap: 10px;
   margin-bottom: 10px;
   align-items: center;
-}
-
-.repo-row .el-select,
-.repo-row .el-input {
-  flex-shrink: 0;
 }
 </style>

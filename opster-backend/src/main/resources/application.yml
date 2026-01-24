@@ -36,3 +36,4 @@ spring:
 opster:
   maven-home: /home/soft/apache-maven-4.0.0
   java-home: /home/soft/jdk-25.0.1
+  encrypt-key: "opster-secret-key"

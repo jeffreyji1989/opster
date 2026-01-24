@@ -1,6 +1,7 @@
 package com.opster.config;
 
 import com.opster.common.enums.Status;
+import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
@@ -10,6 +11,8 @@ import com.opster.module.service.repository.AppServiceRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.Arrays;
 
 @Configuration
 public class DataInitializer {
@@ -24,7 +27,12 @@ public class DataInitializer {
                 Project p1 = new Project();
                 p1.setProjectName("Opster Backend");
                 p1.setProjectOwner("Admin");
-                p1.setGitUrl("https://github.com/opster/backend");
+                p1.setRepositories(Arrays.asList(
+                    new RepositoryDTO()
+                ));
+                p1.getRepositories().get(0).setType(com.opster.common.enums.RepositoryType.BACKEND);
+                p1.getRepositories().get(0).setGitUrl("https://github.com/opster/backend");
+                p1.getRepositories().get(0).setProjectPath("/opt/apps/opster-backend");
                 p1.setBusinessLine("Infrastructure");
                 p1.setStatus(Status.DISABLED);
                 projectRepository.save(p1);
@@ -32,7 +40,12 @@ public class DataInitializer {
                 Project p2 = new Project();
                 p2.setProjectName("Opster Frontend");
                 p2.setProjectOwner("Admin");
-                p2.setGitUrl("https://github.com/opster/frontend");
+                p2.setRepositories(Arrays.asList(
+                    new RepositoryDTO()
+                ));
+                p2.getRepositories().get(0).setType(com.opster.common.enums.RepositoryType.FRONTEND);
+                p2.getRepositories().get(0).setGitUrl("https://github.com/opster/frontend");
+                p2.getRepositories().get(0).setProjectPath("/opt/apps/opster-frontend");
                 p2.setBusinessLine("Infrastructure");
                 p2.setStatus(Status.DISABLED);
                 projectRepository.save(p2);

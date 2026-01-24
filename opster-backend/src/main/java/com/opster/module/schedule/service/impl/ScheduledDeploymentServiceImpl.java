@@ -3,9 +3,11 @@ package com.opster.module.schedule.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.opster.common.enums.DeploymentStatus;
 import com.opster.common.enums.RunStatus;
+import com.opster.common.enums.RepositoryType;
 import com.opster.common.SshUtils;
 import com.opster.module.deployment.entity.DeploymentRecord;
 import com.opster.module.deployment.service.DeploymentRecordService;
+import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.schedule.entity.ScheduledDeployment;
@@ -28,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Optional;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -283,7 +287,29 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
         // Git Pull/Clone
         String gitMessage = ">>> Checking out source code...";
         log.info(gitMessage);
-        String gitUrl = project.getGitUrl();
+
+        // 从 repositories 中获取后端项目的 Git 地址
+        List<RepositoryDTO> repositories = project.getRepositories();
+        String gitUrl = null;
+        if (repositories != null && !repositories.isEmpty()) {
+            // 优先获取 BACKEND 类型的仓库，如果没有则获取第一个
+            Optional<RepositoryDTO> backendRepo = repositories.stream()
+                .filter(r -> RepositoryType.BACKEND.equals(r.getType()))
+                .findFirst();
+            if (backendRepo.isPresent()) {
+                gitUrl = backendRepo.get().getGitUrl();
+            } else {
+                gitUrl = repositories.get(0).getGitUrl();
+            }
+        }
+
+        if (gitUrl == null || gitUrl.trim().isEmpty()) {
+            String errorMsg = ">>> Error: No Git URL found for this project!";
+            log.error(errorMsg);
+            executeCommandWithLog(sshSession, "echo '" + errorMsg + "' >> " + logFilePath, logFilePath);
+            return;
+        }
+
         String branch = service.getGitBranch();
         String gitCmd = String.format(
                 "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",

@@ -51,6 +51,7 @@
           {{ getProjectName(scope.row.projectId) }}
         </template>
       </el-table-column>
+      <el-table-column prop="repoGitUrl" label="仓库" show-overflow-tooltip />
       <el-table-column label="服务器" width="150">
         <template #default="scope">
           {{ getServerName(scope.row.serverId) }}
@@ -60,7 +61,6 @@
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="gitBranch" label="分支" width="100" />
       <el-table-column prop="deployPath" label="部署路径" show-overflow-tooltip />
-      <el-table-column prop="monitorUrl" label="监控地址" show-overflow-tooltip />
       <el-table-column prop="runStatus" label="运行状态" width="100">
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.runStatus)">
@@ -91,48 +91,88 @@
     </el-table>
 
     <!-- Dialog -->
-    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑服务' : '新增服务'">
+    <el-dialog v-model="dialogVisible" :title="form.id ? '编辑服务' : '新增服务'" width="1200px">
       <el-form :model="form" label-width="120px">
         <el-form-item label="选择项目">
-          <el-select v-model="form.projectId" placeholder="请选择项目">
+          <el-select v-model="form.projectId" placeholder="请选择项目" @change="handleProjectChange" :disabled="!!form.id">
             <el-option v-for="item in projects" :key="item.id" :label="item.projectName" :value="item.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="选择服务器">
-          <el-select v-model="form.serverId" placeholder="请选择服务器">
-            <el-option v-for="item in servers" :key="item.id" :label="`${item.alias} (${item.ip})`" :value="item.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="环境">
-          <el-select v-model="form.env" placeholder="请选择环境">
-            <el-option label="生产" value="生产" />
-            <el-option label="测试" value="测试" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="端口号">
-          <el-input-number v-model="form.port" :min="1" :max="65535" />
-        </el-form-item>
-        <el-form-item label="Git分支">
-          <el-input v-model="form.gitBranch" />
-        </el-form-item>
-        <el-form-item label="部署路径">
-          <el-input v-model="form.deployPath" />
-        </el-form-item>
-        <el-form-item label="日志路径">
-          <el-input v-model="form.logPath" />
-        </el-form-item>
-        <el-form-item label="Maven命令">
-          <el-input v-model="form.mavenCmd" type="textarea" />
-        </el-form-item>
-        <el-form-item label="启动脚本">
-          <el-input v-model="form.startScript" type="textarea" />
-        </el-form-item>
-        <el-form-item label="监控地址">
-          <el-input v-model="form.monitorUrl" placeholder="请输入监控地址" />
-        </el-form-item>
-        <el-form-item label="启用状态">
-          <el-switch v-model="form.enabled" :active-value="1" :inactive-value="0" />
-        </el-form-item>
+
+        <div v-if="form.projectId" class="repo-config-list">
+          <div v-for="(item, index) in form.items" :key="index" class="repo-config-card">
+            <div class="repo-info">
+              <el-tag size="small">{{ getRepoTypeLabel(item.repoType) }}</el-tag>
+              <span class="repo-url">{{ item.repoGitUrl }}</span>
+            </div>
+            
+            <el-row :gutter="20">
+              <el-col :span="6">
+                <el-form-item label="服务器" label-width="70px">
+                  <el-select v-model="item.serverId" placeholder="选择服务器" style="width: 100%">
+                    <el-option v-for="s in servers" :key="s.id" :label="`${s.alias} (${s.ip})`" :value="s.id" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="环境" label-width="50px">
+                  <el-select v-model="item.env" style="width: 100%">
+                    <el-option label="生产" value="生产" />
+                    <el-option label="测试" value="测试" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="4">
+                <el-form-item label="端口" label-width="50px">
+                  <el-input-number v-model="item.port" :min="1" :max="65535" controls-position="right" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="5">
+                <el-form-item label="分支" label-width="50px">
+                  <el-input v-model="item.gitBranch" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="5">
+                <el-form-item label="状态" label-width="50px">
+                  <el-switch v-model="item.status" :active-value="1" :inactive-value="0" active-text="启用" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="部署路径" label-width="70px">
+                  <el-input v-model="item.deployPath" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="日志路径" label-width="70px">
+                  <el-input v-model="item.logPath" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="打包命令" label-width="70px">
+                  <el-input v-model="item.mavenCmd" type="textarea" :rows="1" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="启动脚本" label-width="70px">
+                  <el-input v-model="item.startScript" type="textarea" :rows="1" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <el-row :gutter="20">
+              <el-col :span="24">
+                <el-form-item label="监控地址" label-width="70px">
+                  <el-input v-model="item.monitorUrl" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <span class="dialog-footer">
@@ -232,7 +272,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import 'xterm/css/xterm.css'
@@ -263,21 +303,62 @@ const resultVisible = ref(false)
 const resultContent = ref('')
 const resultStatus = ref('success')
 
+// 仓库类型映射
+const repoTypeMap = {
+  0: '前端',
+  1: '后端',
+  2: '管理后台',
+  3: '移动端'
+}
+const getRepoTypeLabel = (type) => repoTypeMap[type] || '未知'
+
 const form = reactive({
   id: null,
   projectId: null,
-  serverId: null,
-  env: '测试',
-  port: 8080,
-  gitBranch: 'master',
-  deployPath: '',
-  logPath: '',
-  mavenCmd: 'mvn clean package -DskipTests',
-  startScript: './start.sh',
-  monitorUrl: '',
-  runStatus: 0,
-  status: 1
+  items: []
 })
+
+const handleProjectChange = (projectId) => {
+  const project = projects.value.find(p => p.id === projectId)
+  if (!project) {
+    form.items = []
+    return
+  }
+
+  // 解析 repositories 字段，确保它是数组对象
+  let repos = project.repositories
+  if (typeof repos === 'string') {
+    try {
+      repos = JSON.parse(repos)
+    } catch (e) {
+      console.error('解析仓库列表失败:', e)
+      repos = []
+    }
+  }
+
+  if (Array.isArray(repos)) {
+    form.items = repos.map(repo => {
+      // 根据仓库类型预设默认值
+      const isFrontend = repo.type === 0 || repo.type === 2
+      return {
+        repoGitUrl: repo.gitUrl,
+        repoType: repo.type,
+        serverId: null,
+        env: '测试',
+        port: isFrontend ? 80 : 8080,
+        gitBranch: 'master',
+        deployPath: repo.projectPath || '/var/www/' + (project.projectName || 'app'),
+        logPath: isFrontend ? '' : '/var/log/' + (project.projectName || 'app') + '.log',
+        mavenCmd: isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests',
+        startScript: isFrontend ? '' : './start.sh',
+        monitorUrl: '',
+        status: 1
+      }
+    })
+  } else {
+    form.items = []
+  }
+}
 
 const getStatusType = (status) => {
   const map = { 0: 'info', 1: 'success', 2: 'danger' }
@@ -302,7 +383,6 @@ const getServerName = (id) => {
 const fetchData = async () => {
   loading.value = true
   try {
-    // 构建查询参数
     const params = {}
     if (queryForm.projectId !== '') params.projectId = queryForm.projectId
     if (queryForm.businessLine) params.businessLine = queryForm.businessLine
@@ -310,62 +390,29 @@ const fetchData = async () => {
     if (queryForm.runStatus !== '') params.runStatus = queryForm.runStatus
     if (queryForm.status !== '') params.status = queryForm.status
     
-    // 并行请求数据
     const [serviceRes, projectRes, serverRes] = await Promise.all([
       request.get('/service/list', { params }),
       request.get('/project/list'),
       request.get('/server/list')
     ])
     
-    // 处理服务数据的状态值，确保是数字类型，避免菜单切换时触发 el-switch 的 change 事件
-    tableData.value = serviceRes.map(item => {
-      let statusValue = 0
-      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
-        statusValue = 1
-      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
-        statusValue = 0
-      }
-      return {
-        ...item,
-        status: statusValue
-      }
-    })
+    tableData.value = serviceRes.map(item => ({
+      ...item,
+      status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
+    }))
     
-    // 处理项目数据的状态值
-    projects.value = projectRes.map(item => {
-      let statusValue = 0
-      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
-        statusValue = 1
-      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
-        statusValue = 0
-      }
-      return {
-        ...item,
-        status: statusValue
-      }
-    })
+    projects.value = projectRes.map(item => ({
+      ...item,
+      status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
+    }))
     
-    // 处理服务器数据的状态值
-    servers.value = serverRes.map(item => {
-      let statusValue = 0
-      if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
-        statusValue = 1
-      } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
-        statusValue = 0
-      }
-      return {
-        ...item,
-        status: statusValue
-      }
-    })
+    servers.value = serverRes.map(item => ({
+      ...item,
+      status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
+    }))
     
-    // 提取业务线列表（去重）
     const lines = new Set()
-    projects.value.forEach(project => {
-      if (project.businessLine) {
-        lines.add(project.businessLine)
-      }
-    })
+    projects.value.forEach(p => p.businessLine && lines.add(p.businessLine))
     businessLines.value = Array.from(lines)
   } finally {
     loading.value = false
@@ -373,48 +420,66 @@ const fetchData = async () => {
 }
 
 const handleAdd = () => {
-  Object.assign(form, {
-    id: null,
-    projectId: null,
-    serverId: null,
-    env: '测试',
-    port: 8080,
-    gitBranch: 'master',
-    deployPath: '',
-    logPath: '',
-    mavenCmd: 'mvn clean package -DskipTests',
-    startScript: './start.sh',
-    monitorUrl: '',
-    status: 0,
-    enabled: 1
-  })
+  form.id = null
+  form.projectId = null
+  form.items = []
   dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
-  Object.assign(form, row)
+  form.id = row.id
+  form.projectId = row.projectId
+  // 编辑模式只编辑当前选中的一个服务
+  form.items = [{
+    id: row.id,
+    repoGitUrl: row.repoGitUrl,
+    serverId: row.serverId,
+    env: row.env,
+    port: row.port,
+    gitBranch: row.gitBranch,
+    deployPath: row.deployPath,
+    logPath: row.logPath,
+    mavenCmd: row.mavenCmd,
+    startScript: row.startScript,
+    monitorUrl: row.monitorUrl,
+    status: row.status
+  }]
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
+  if (!form.projectId) {
+    return ElMessage.warning('请选择项目')
+  }
+  if (form.items.length === 0) {
+    return ElMessage.warning('项目暂无仓库配置')
+  }
+
+  // 校验每项是否选择了服务器
+  const invalid = form.items.find(item => !item.serverId)
+  if (invalid) {
+    return ElMessage.warning(`仓库 ${invalid.repoGitUrl} 未选择服务器`)
+  }
+
   try {
     if (form.id) {
-      await request.put('/service', form)
+      // 编辑
+      const data = { ...form.items[0], projectId: form.projectId }
+      await request.put('/service', data)
       ElMessage.success('更新成功')
     } else {
-      await request.post('/service', form)
-      ElMessage.success('创建成功')
+      // 批量新增
+      const services = form.items.map(item => ({ ...item, projectId: form.projectId }))
+      await request.post('/service/batch', services)
+      ElMessage.success('批量创建成功')
     }
     dialogVisible.value = false
     fetchData()
-  } catch (e) {
-  }
+  } catch (e) {}
 }
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm('确认删除该服务?', '警告', {
-    type: 'warning'
-  }).then(async () => {
+  ElMessageBox.confirm('确认删除该服务?', '警告', { type: 'warning' }).then(async () => {
     await request.delete(`/service/${row.id}`)
     ElMessage.success('删除成功')
     fetchData()
@@ -427,99 +492,60 @@ const handleToggleEnabled = async (row) => {
     ElMessage.success('状态更新成功')
   } catch (e) {
     ElMessage.error('状态更新失败')
-    // 恢复原状态
     row.status = row.status === 1 ? 0 : 1
   }
 }
 
-const handleSearch = () => {
+const handleSearch = () => fetchData()
+const handleReset = () => {
+  Object.assign(queryForm, { projectId: '', businessLine: '', env: '', runStatus: '', status: '' })
   fetchData()
 }
 
-const handleReset = () => {
-  Object.assign(queryForm, {
-    projectId: '',
-    businessLine: '',
-    env: '',
-    runStatus: '',
-    status: ''
-  })
-  fetchData()
-}
+// Socket instances
+const execSocket = ref(null)
+const logSocket = ref(null)
 
 const handleAction = (row, action) => {
-  const actionNames = {
-    'deploy': '发版',
-    'restart': '重启',
-    'start': '启动'
-  }
+  const actionNames = { 'deploy': '发版', 'restart': '重启', 'start': '启动' }
   const actionName = actionNames[action] || action
   
-  ElMessageBox.confirm(`确认要执行【${actionName}】操作吗?`, '提示', {
-    confirmButtonText: '确认执行',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(() => {
-    // Open Result Dialog immediately
+  ElMessageBox.confirm(`确认执行【${actionName}】?`, '提示', { type: 'warning' }).then(() => {
     resultContent.value = `正在连接 WebSocket 执行 ${actionName}...\n`
     resultStatus.value = 'success'
     resultVisible.value = true
     
-    // Connect WebSocket for Execution
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
-    const port = '8080' // Backend port
+    const port = '8080'
     const wsUrl = `${protocol}//${host}:${port}/ws/exec/${row.id}/${action}`
     
-    let socket = null
     try {
-      socket = new WebSocket(wsUrl)
-      
-      socket.onopen = () => {
-        resultContent.value += '>>> 连接成功，开始执行...\n'
-      }
-      
-      socket.onmessage = (event) => {
-        resultContent.value += event.data + '\n'
-        // Auto scroll
-        setTimeout(() => {
+      const socket = new WebSocket(wsUrl)
+      socket.onopen = () => resultContent.value += '>>> 连接成功，开始执行...\n'
+      socket.onmessage = (e) => {
+        resultContent.value += e.data + '\n'
+        nextTick(() => {
           const els = document.querySelectorAll('.log-content')
-          // The second one is result dialog content (usually)
-          // Safer to find by parent dialog
-          if (els.length > 0) {
-             els.forEach(el => el.scrollTop = el.scrollHeight)
-          }
-        }, 0)
+          els.forEach(el => el.scrollTop = el.scrollHeight)
+        })
       }
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket Error:', error)
+      socket.onerror = () => {
         resultContent.value += '\n>>> 连接发生错误'
         resultStatus.value = 'error'
       }
-      
       socket.onclose = () => {
-        resultContent.value += '\n>>> 执行结束 (连接已断开)'
-        // Refresh status after execution
+        resultContent.value += '\n>>> 执行结束'
         fetchData()
       }
-      
-      // Store socket instance
       execSocket.value = socket
-      
     } catch (e) {
-      console.error(e)
       resultContent.value += '\n无法建立连接: ' + e.message
       resultStatus.value = 'error'
     }
-
   }).catch(() => {})
 }
 
-// Add a ref to hold exec socket
-const execSocket = ref(null)
-
-// Watch result dialog visible change to close socket
 watch(resultVisible, (val) => {
   if (!val && execSocket.value) {
     execSocket.value.close()
@@ -530,54 +556,27 @@ watch(resultVisible, (val) => {
 const handleLog = (row) => {
   logContent.value = '正在连接 WebSocket...'
   logVisible.value = true
-  
-  // Use current host for WebSocket connection
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.hostname
-  const port = '8080' // Backend port
+  const port = '8080'
   const wsUrl = `${protocol}//${host}:${port}/ws/log/${row.id}`
-  
-  let socket = null
   try {
-    socket = new WebSocket(wsUrl)
-    
-    socket.onopen = () => {
-      logContent.value = '>>> 连接成功，正在获取日志...\n'
-    }
-    
-    socket.onmessage = (event) => {
-      logContent.value += event.data + '\n'
-      // Auto scroll to bottom
-      // Need nextTick or setTimeout if dom not updated
-      setTimeout(() => {
+    const socket = new WebSocket(wsUrl)
+    socket.onopen = () => logContent.value = '>>> 连接成功，正在获取日志...\n'
+    socket.onmessage = (e) => {
+      logContent.value += e.data + '\n'
+      nextTick(() => {
         const el = document.querySelector('.log-content')
         if (el) el.scrollTop = el.scrollHeight
-      }, 0)
+      })
     }
-    
-    socket.onerror = (error) => {
-      console.error('WebSocket Error:', error)
-      logContent.value += '\n>>> 连接发生错误'
-    }
-    
-    socket.onclose = () => {
-      logContent.value += '\n>>> 连接已断开'
-    }
-    
-    // Store socket instance to close it when dialog closed
+    socket.onclose = () => logContent.value += '\n>>> 连接已断开'
     logSocket.value = socket
-    
   } catch (e) {
-    console.error(e)
     logContent.value = '无法建立连接: ' + e.message
   }
 }
 
-// Add a ref to hold socket
-const logSocket = ref(null)
-
-// Watch dialog visible change to close socket
-import { watch } from 'vue'
 watch(logVisible, (val) => {
   if (!val && logSocket.value) {
     logSocket.value.close()
@@ -585,299 +584,99 @@ watch(logVisible, (val) => {
   }
 })
 
-// 版本回退处理函数
 const handleRollback = (row) => {
-  ElMessageBox.confirm('确认要执行版本回退操作吗?', '警告', {
-    confirmButtonText: '确认回退',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(() => {
-    // Open Result Dialog immediately
+  ElMessageBox.confirm('确认执行版本回退?', '警告', { type: 'warning' }).then(() => {
     resultContent.value = `正在连接 WebSocket 执行版本回退...\n`
     resultStatus.value = 'success'
     resultVisible.value = true
-    
-    // Connect WebSocket for Execution
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
-    const port = '8080' // Backend port
+    const port = '8080'
     const wsUrl = `${protocol}//${host}:${port}/ws/exec/${row.id}/rollback`
-    
-    let socket = null
     try {
-      socket = new WebSocket(wsUrl)
-      
-      socket.onopen = () => {
-        resultContent.value += '>>> 连接成功，开始执行版本回退...\n'
-      }
-      
-      socket.onmessage = (event) => {
-        resultContent.value += event.data + '\n'
-        // Auto scroll
-        setTimeout(() => {
+      const socket = new WebSocket(wsUrl)
+      socket.onopen = () => resultContent.value += '>>> 连接成功，开始执行...\n'
+      socket.onmessage = (e) => {
+        resultContent.value += e.data + '\n'
+        nextTick(() => {
           const els = document.querySelectorAll('.log-content')
-          if (els.length > 0) {
-             els.forEach(el => el.scrollTop = el.scrollHeight)
-          }
-        }, 0)
+          els.forEach(el => el.scrollTop = el.scrollHeight)
+        })
       }
-      
-      socket.onerror = (error) => {
-        console.error('WebSocket Error:', error)
-        resultContent.value += '\n>>> 连接发生错误'
-        resultStatus.value = 'error'
-      }
-      
       socket.onclose = () => {
-        resultContent.value += '\n>>> 版本回退执行结束 (连接已断开)'
-        // Refresh status after execution
         fetchData()
       }
-      
-      // Store socket instance
       execSocket.value = socket
-      
-    } catch (e) {
-      console.error(e)
-      resultContent.value += '\n无法建立连接: ' + e.message
-      resultStatus.value = 'error'
-    }
-
+    } catch (e) {}
   }).catch(() => {})
 }
 
-// Terminal related data
+// Terminal related
 const terminalVisible = ref(false)
-const terminalOutput = ref('')
-const terminalInput = ref('')
 const terminalSocket = ref(null)
 const terminalRef = ref(null)
 const terminal = ref(null)
 const fitAddon = ref(null)
 const attachAddon = ref(null)
-
-// Chat related data
 const chatMessages = ref([])
 const chatInput = ref('')
 const recommendedCommands = ref([])
 
-// Terminal handler
 const handleTerminal = (row) => {
-  // Reset terminal data
   chatMessages.value = []
   recommendedCommands.value = []
   chatInput.value = ''
-  
   terminalVisible.value = true
-  
-  // Wait for DOM to update
   nextTick(() => {
-    // Initialize terminal
     initTerminal()
-    
-    // Connect to terminal WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
-    const port = '8080' // Backend port
+    const port = '8080'
     const wsUrl = `${protocol}//${host}:${port}/ws/terminal/${row.id}`
-    
     try {
       terminalSocket.value = new WebSocket(wsUrl)
-      
       terminalSocket.value.onopen = () => {
-        // Attach WebSocket to terminal
         attachAddon.value = new AttachAddon(terminalSocket.value)
         terminal.value.loadAddon(attachAddon.value)
         terminal.value.write('>>> 终端连接成功\r\n')
       }
-      
-      terminalSocket.value.onerror = (error) => {
-        console.error('Terminal WebSocket Error:', error)
-        terminal.value.write('\r\n>>> 终端连接发生错误\r\n')
-      }
-      
-      terminalSocket.value.onclose = () => {
-        terminal.value.write('\r\n>>> 终端连接已断开\r\n')
-      }
-      
-    } catch (e) {
-      console.error(e)
-      terminal.value.write('\r\n无法建立终端连接: ' + e.message + '\r\n')
-    }
+    } catch (e) {}
   })
 }
 
-// Initialize terminal
 const initTerminal = () => {
-  // Clean up existing terminal
-  if (terminal.value) {
-    terminal.value.dispose()
-  }
-  
-  // Create new terminal
+  if (terminal.value) terminal.value.dispose()
   terminal.value = new Terminal({
     cursorBlink: true,
-    cursorStyle: 'block',
-    scrollback: 1000,
     fontSize: 14,
-    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-    theme: {
-      foreground: '#f8f8f2',
-      background: '#282a36',
-      cursor: '#f8f8f2',
-      cursorAccent: '#282a36',
-      selection: 'rgba(255, 255, 255, 0.1)',
-      ansi: {
-        black: '#21222c',
-        red: '#ff5555',
-        green: '#50fa7b',
-        yellow: '#f1fa8c',
-        blue: '#bd93f9',
-        magenta: '#ff79c6',
-        cyan: '#8be9fd',
-        white: '#f8f8f2',
-        brightBlack: '#6272a4',
-        brightRed: '#ff6e6e',
-        brightGreen: '#69ff94',
-        brightYellow: '#ffffa5',
-        brightBlue: '#d6acff',
-        brightMagenta: '#ff92df',
-        brightCyan: '#a4ffff',
-        brightWhite: '#ffffff'
-      }
-    }
+    theme: { background: '#282a36', foreground: '#f8f8f2' }
   })
-  
-  // Create and load fit addon
   fitAddon.value = new FitAddon()
   terminal.value.loadAddon(fitAddon.value)
-  
-  // Create and load search addon
-  const searchAddon = new SearchAddon()
-  terminal.value.loadAddon(searchAddon)
-  
-  // Attach terminal to DOM
   terminal.value.open(terminalRef.value)
-  
-  // Fit terminal to container
   fitAddon.value.fit()
-  
-  // Add resize listener
-  window.addEventListener('resize', () => {
-    if (fitAddon.value && terminal.value) {
-      fitAddon.value.fit()
-    }
-  })
-  
-  // Add tab completion support
-  terminal.value.onKey((e) => {
-    const printable = !e.domEvent.altKey && !e.domEvent.ctrlKey && !e.domEvent.metaKey
-    
-    if (e.key === 'Tab') {
-      // Handle tab completion
-      e.domEvent.preventDefault()
-      terminal.value.write('  ')
-    } else if (printable) {
-      // Pass through printable characters
-      if (attachAddon.value) {
-        // WebSocket is connected, let the attach addon handle it
-      }
-    }
-  })
 }
 
-// Send chat message to generate commands
 const sendChatMessage = async () => {
   if (!chatInput.value.trim()) return
-  
-  // Clear history chat messages before sending new one
-  chatMessages.value = []
-  
-  // Add user message to chat
-  chatMessages.value.push({
-    type: 'user',
-    sender: '您',
-    content: chatInput.value
-  })
-  
-  // Scroll to bottom
-  setTimeout(() => {
-    const chatContent = document.querySelector('.chat-content')
-    if (chatContent) {
-      chatContent.scrollTop = chatContent.scrollHeight
-    }
-  }, 0)
-  
-  // Generate commands
+  chatMessages.value = [{ type: 'user', sender: '您', content: chatInput.value }]
   try {
     const response = await request.post('/terminal/generate-command', chatInput.value)
     recommendedCommands.value = response
-    
-    // Add AI response to chat
-    chatMessages.value.push({
-      type: 'ai',
-      sender: 'AI',
-      content: '已为您生成以下命令：\n' + recommendedCommands.value.map(cmd => `- ${cmd}`).join('\n')
-    })
-    
-    // Scroll to bottom
-    setTimeout(() => {
-      const chatContent = document.querySelector('.chat-content')
-      if (chatContent) {
-        chatContent.scrollTop = chatContent.scrollHeight
-      }
-    }, 0)
-  } catch (e) {
-    console.error(e)
-    chatMessages.value.push({
-      type: 'ai',
-      sender: 'AI',
-      content: '生成命令失败，请重试'
-    })
-  }
-  
+    chatMessages.value.push({ type: 'ai', sender: 'AI', content: '推荐命令已生成' })
+  } catch (e) {}
   chatInput.value = ''
 }
 
-// 安全命令白名单（只读/无害命令）
-const SAFE_COMMANDS = /^(ls|pwd|whoami|date|echo|cat|head|tail|grep|ps|df|du|free|top|uname|hostname|id|which|man)$/
-
-function isSafeCommand(command) {
-  const simpleCmd = command.trim().split(/\s+/)[0]
-  return SAFE_COMMANDS.test(simpleCmd)
+const isSafeCommand = (cmd) => !/rm\s+-rf|mkfs|shutdown|reboot/i.test(cmd)
+const sendCommandToTerminal = (cmd) => {
+  if (terminalSocket.value) terminalSocket.value.send(cmd + '\r')
 }
 
-// Send command to terminal
-const sendCommandToTerminal = (command) => {
-  if (!terminalSocket.value || terminalSocket.value.readyState !== WebSocket.OPEN) {
-    terminal.value.write('>>> 终端未连接\r\n')
-    return
-  }
-  
-  terminalSocket.value.send(command + '\r')
-}
-
-// Watch terminal dialog visible change to close socket
 watch(terminalVisible, (val) => {
   if (!val) {
-    // Close WebSocket
-    if (terminalSocket.value) {
-      terminalSocket.value.close()
-      terminalSocket.value = null
-    }
-    
-    // Clean up terminal
-    if (terminal.value) {
-      terminal.value.dispose()
-      terminal.value = null
-    }
-    
-    // Remove resize listener
-    window.removeEventListener('resize', () => {
-      if (fitAddon.value && terminal.value) {
-        fitAddon.value.fit()
-      }
-    })
+    if (terminalSocket.value) terminalSocket.value.close()
+    if (terminal.value) terminal.value.dispose()
   }
 })
 
@@ -897,175 +696,76 @@ onMounted(fetchData)
   overflow: auto;
   font-family: monospace;
   white-space: pre-wrap;
-  word-wrap: break-word;
 }
-.result-header {
+.repo-config-list {
+  margin-top: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.repo-config-card {
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 15px;
+  background-color: #f9fafc;
+}
+.repo-info {
   margin-bottom: 15px;
   display: flex;
   align-items: center;
+  gap: 10px;
+  border-bottom: 1px dashed #dcdfe6;
+  padding-bottom: 10px;
 }
-
-/* Terminal Styles */
+.repo-url {
+  font-family: monospace;
+  font-size: 13px;
+  color: #606266;
+}
 .terminal-container {
   display: flex;
   height: 60vh;
   gap: 20px;
 }
-
 .terminal-left {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
-
 .terminal-right {
   flex: 2;
   display: flex;
   flex-direction: column;
 }
-
-/* Chat Window */
-.chat-window {
+.chat-window, .command-list {
   flex: 1;
   display: flex;
   flex-direction: column;
   border: 1px solid #e4e7ed;
   border-radius: 4px;
 }
-
-.chat-header {
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-bottom: 1px solid #e4e7ed;
-}
-
-.chat-content {
+.chat-content, .list-content {
   flex: 1;
   padding: 10px;
   overflow-y: auto;
-  background-color: #fff;
 }
-
-.chat-message {
-  margin-bottom: 10px;
-  padding: 8px;
-  border-radius: 4px;
-}
-
-.chat-message.user {
-  background-color: #ecf5ff;
-  align-self: flex-end;
-}
-
-.chat-message.ai {
-  background-color: #f0f9eb;
-  align-self: flex-start;
-}
-
-.message-sender {
-  font-weight: bold;
-  margin-bottom: 4px;
-}
-
-.message-content {
-  font-size: 14px;
-}
-
-.chat-input {
+.chat-input, .chat-header, .list-header {
   padding: 10px;
+  background: #f5f7fa;
   border-top: 1px solid #e4e7ed;
-  display: flex;
-  gap: 10px;
 }
-
-.chat-input .el-input {
-  flex: 1;
-}
-
-/* Command List */
-.command-list {
-  flex: 1;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-}
-
-.list-header {
-  padding: 10px;
-  background-color: #f5f7fa;
+.chat-header, .list-header {
+  border-top: none;
   border-bottom: 1px solid #e4e7ed;
 }
-
-.list-content {
-  padding: 10px;
-  overflow-y: auto;
-  background-color: #fff;
-}
-
 .command-item {
   display: flex;
   gap: 10px;
   margin-bottom: 10px;
-  align-items: center;
 }
-
-.command-item .el-input {
-  flex: 1;
-}
-
-.danger-command :deep(.el-input__wrapper) {
-  border-color: #f56c6c;
-  background-color: #fef0f0;
-}
-
-.danger-warning {
-  color: #f56c6c;
-  font-size: 12px;
-  font-weight: bold;
-}
-
-/* Terminal */
-.terminal-header {
-  padding: 10px;
-  background-color: #f5f7fa;
-  border-bottom: 1px solid #e4e7ed;
-  border-radius: 4px 4px 0 0;
-}
-
 .terminal-content {
   flex: 1;
-  overflow: hidden;
-  border-radius: 0 0 4px 4px;
-}
-
-/* XTerm.js specific styles */
-:deep(.xterm) {
-  width: 100%;
-  height: 100%;
-}
-
-:deep(.xterm-viewport) {
-  background-color: #282a36;
-}
-
-:deep(.xterm-cursor) {
-  background-color: #f8f8f2;
-}
-
-:deep(.xterm-selection) {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Responsive Adjustments */
-@media (max-width: 1200px) {
-  .terminal-container {
-    flex-direction: column;
-  }
-  
-  .terminal-left,
-  .terminal-right {
-    flex: none;
-    height: 40vh;
-  }
+  background: #282a36;
 }
 </style>

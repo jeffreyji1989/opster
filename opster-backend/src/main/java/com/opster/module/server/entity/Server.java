@@ -2,11 +2,16 @@ package com.opster.module.server.entity;
 
 import com.opster.common.BaseEntity;
 import com.opster.common.enums.Status;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 /**
  * 服务器实体类
  */
+@Data
+@EqualsAndHashCode(callSuper = true)
 @Entity
 @Table(name = "server")
 public class Server extends BaseEntity {
@@ -37,6 +42,7 @@ public class Server extends BaseEntity {
      * 密码
      */
     @Column(name = "password")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     /**
@@ -63,76 +69,4 @@ public class Server extends BaseEntity {
      */
     @Column(name = "deployed_count")
     private Integer deployedCount;
-
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public String getIp() {
-        return ip;
-    }
-
-    public void setIp(String ip) {
-        this.ip = ip;
-    }
-
-    public String getAlias() {
-        return alias;
-    }
-
-    public void setAlias(String alias) {
-        this.alias = alias;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public String getGroupName() {
-        return groupName;
-    }
-
-    public void setGroupName(String groupName) {
-        this.groupName = groupName;
-    }
-
-    public String getEnv() {
-        return env;
-    }
-
-    public void setEnv(String env) {
-        this.env = env;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
-    public Integer getDeployedCount() {
-        return deployedCount;
-    }
-
-    public void setDeployedCount(Integer deployedCount) {
-        this.deployedCount = deployedCount;
-    }
 }
