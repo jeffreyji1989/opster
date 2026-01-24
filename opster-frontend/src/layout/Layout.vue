@@ -19,7 +19,7 @@
           <span>项目管理</span>
         </el-menu-item>
         <el-menu-item index="/server">
-          <el-icon><Monitor /></el-icon>
+          <el-icon><Platform /></el-icon>
           <span>服务器管理</span>
         </el-menu-item>
         <el-menu-item index="/service">
@@ -33,6 +33,10 @@
         <el-menu-item index="/deployment-record">
           <el-icon><Document /></el-icon>
           <span>发版记录</span>
+        </el-menu-item>
+        <el-menu-item index="/scheduled-deployment">
+          <el-icon><Clock /></el-icon>
+          <span>定时发版</span>
         </el-menu-item>
       </el-menu>
     </el-aside>

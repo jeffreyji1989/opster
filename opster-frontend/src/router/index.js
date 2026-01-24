@@ -6,6 +6,7 @@ import Server from '../views/Server.vue'
 import Service from '../views/Service.vue'
 import Monitor from '../views/Monitor.vue'
 import DeploymentRecord from '../views/DeploymentRecord.vue'
+import ScheduledDeployment from '../views/ScheduledDeployment.vue'
 
 const routes = [
   {
@@ -42,6 +43,11 @@ const routes = [
         path: 'deployment-record',
         name: 'DeploymentRecord',
         component: DeploymentRecord
+      },
+      {
+        path: 'scheduled-deployment',
+        name: 'ScheduledDeployment',
+        component: ScheduledDeployment
       }
     ]
   }
