@@ -22,7 +22,7 @@ spring:
   # Spring AI Alibaba Configuration
   ai:
     dashscope:
-      api-key: xxxxx
+      api-key: sk-6ad8e18d14f9489899f003c7675af61c
 #      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       chat:
         options:

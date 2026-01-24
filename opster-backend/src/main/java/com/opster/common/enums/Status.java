@@ -1,5 +1,7 @@
 package com.opster.common.enums;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * 通用状态枚举
  */
@@ -22,6 +24,10 @@ public enum Status {
         this.desc = desc;
     }
     
+    /**
+     * JSON序列化时返回code值，而非枚举名称
+     */
+    @JsonValue
     public Integer getCode() {
         return code;
     }

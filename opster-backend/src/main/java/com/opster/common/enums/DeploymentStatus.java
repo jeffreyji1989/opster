@@ -1,5 +1,7 @@
 package com.opster.common.enums;
 
+import com.fasterxml.jackson.annotation.JsonValue;
+
 /**
  * 部署状态枚举
  */
@@ -16,6 +18,10 @@ public enum DeploymentStatus {
         this.name = name;
     }
 
+    /**
+     * JSON序列化时返回code值，而非枚举名称
+     */
+    @JsonValue
     public Integer getCode() {
         return code;
     }

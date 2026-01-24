@@ -22,6 +22,9 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Autowired
     private TerminalWebSocketHandler terminalWebSocketHandler;
 
+    @Autowired
+    private com.opster.handler.MonitorWebSocketHandler monitorWebSocketHandler;
+
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         // 注册 ExecWebSocketHandler
@@ -34,6 +37,10 @@ public class WebSocketConfig implements WebSocketConfigurer {
         
         // 注册 TerminalWebSocketHandler
         registry.addHandler(terminalWebSocketHandler, "/ws/terminal/**")
+                .setAllowedOrigins("*");
+
+        // 注册 MonitorWebSocketHandler
+        registry.addHandler(monitorWebSocketHandler, "/ws/monitor")
                 .setAllowedOrigins("*");
     }
 }

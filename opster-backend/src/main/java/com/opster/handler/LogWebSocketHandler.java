@@ -158,7 +158,7 @@ public class LogWebSocketHandler extends TextWebSocketHandler {
                 wsSession.sendMessage(new TextMessage("Project: " + record.getProjectName()));
                 wsSession.sendMessage(new TextMessage("Server: " + record.getServerIp() + " (" + record.getServerAlias() + ")"));
                 wsSession.sendMessage(new TextMessage("Service: " + record.getServiceName()));
-                wsSession.sendMessage(new TextMessage("Status: " + record.getStatus()));
+                wsSession.sendMessage(new TextMessage("Status: " + (record.getStatus() != null ? record.getStatus().getName() : "Unknown")));
                 wsSession.sendMessage(new TextMessage("=== Log Content (tail -100f) ===\n"));
 
                 // Connect SSH
