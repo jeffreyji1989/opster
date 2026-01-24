@@ -7,6 +7,7 @@ import com.opster.module.deployment.service.DeploymentRecordService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -55,14 +56,15 @@ public class DeploymentRecordServiceImpl implements DeploymentRecordService {
         if (record == null || record.getLogPath() == null) {
             return "";
         }
-        
+
         java.io.File logFile = new java.io.File(record.getLogPath());
         if (!logFile.exists()) {
             return "日志文件不存在: " + record.getLogPath();
         }
-        
+
         StringBuilder content = new StringBuilder();
-        try (java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.FileReader(logFile))) {
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.FileReader(logFile, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 content.append(line).append("\n");
@@ -70,7 +72,27 @@ public class DeploymentRecordServiceImpl implements DeploymentRecordService {
         } catch (java.io.IOException e) {
             return "读取日志文件失败: " + e.getMessage();
         }
-        
+
         return content.toString();
+    }
+
+    @Override
+    public List<DeploymentRecord> getVersionHistory(Integer serviceId) {
+        // 获取非回退记录的版本历史，按时间倒序
+        return deploymentRecordRepository.findByServiceIdAndIsRollbackOrderByCreateTimeDesc(
+                serviceId,
+                false
+        );
+    }
+
+    @Override
+    public void updateVersionInfo(Integer id, String description, String tag) {
+        DeploymentRecord record = deploymentRecordRepository.findById(id).orElse(null);
+        if (record == null) {
+            throw new RuntimeException("部署记录不存在: " + id);
+        }
+        record.setVersionDescription(description);
+        record.setVersionTag(tag);
+        deploymentRecordRepository.save(record);
     }
 }

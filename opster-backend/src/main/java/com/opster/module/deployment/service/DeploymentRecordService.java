@@ -58,4 +58,19 @@ public interface DeploymentRecordService {
      * @return 部署日志内容
      */
     String getLogContent(Integer id);
+
+    /**
+     * 获取服务的版本历史列表（排除回退记录）
+     * @param serviceId 服务ID
+     * @return 版本历史列表
+     */
+    List<DeploymentRecord> getVersionHistory(Integer serviceId);
+
+    /**
+     * 更新版本描述和标签
+     * @param id 部署记录ID
+     * @param description 版本描述
+     * @param tag 版本标签
+     */
+    void updateVersionInfo(Integer id, String description, String tag);
 }

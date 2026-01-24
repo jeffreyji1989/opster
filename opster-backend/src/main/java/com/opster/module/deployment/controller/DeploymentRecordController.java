@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 部署记录控制器
@@ -51,5 +52,32 @@ public class DeploymentRecordController {
     @GetMapping("/{id}")
     public DeploymentRecord getById(@PathVariable Integer id) {
         return deploymentRecordService.getById(id);
+    }
+
+    /**
+     * 获取服务的版本历史
+     * @param serviceId 服务ID
+     * @return 版本历史列表
+     */
+    @GetMapping("/service/{serviceId}/versions")
+    public List<DeploymentRecord> getVersionHistory(@PathVariable Integer serviceId) {
+        return deploymentRecordService.getVersionHistory(serviceId);
+    }
+
+    /**
+     * 更新版本描述和标签
+     * @param id 部署记录ID
+     * @param request 包含description和tag的请求体
+     */
+    @PutMapping("/{id}/version-info")
+    public void updateVersionInfo(
+            @PathVariable Integer id,
+            @RequestBody Map<String, String> request
+    ) {
+        deploymentRecordService.updateVersionInfo(
+                id,
+                request.get("description"),
+                request.get("tag")
+        );
     }
 }

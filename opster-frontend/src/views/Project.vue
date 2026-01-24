@@ -25,6 +25,7 @@
 
     <el-table :data="tableData" style="width: 100%" v-loading="loading">
       <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column prop="projectCode" label="项目编号" width="150" />
       <el-table-column prop="projectName" label="项目名称" />
       <el-table-column prop="projectOwner" label="负责人" />
       <el-table-column label="Git 仓库" width="120">
@@ -50,6 +51,9 @@
     <!-- Dialog -->
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'" width="1000px">
       <el-form :model="form" label-width="100px">
+        <el-form-item label="项目编号">
+          <el-input v-model="form.projectCode" placeholder="请输入项目编号" />
+        </el-form-item>
         <el-form-item label="项目名称">
           <el-input v-model="form.projectName" />
         </el-form-item>
@@ -141,6 +145,7 @@ const getRepositoryTypeLabel = (type) => {
 
 const form = reactive({
   id: null,
+  projectCode: '',
   projectName: '',
   projectOwner: '',
   repositories: [
@@ -190,6 +195,7 @@ const fetchData = async () => {
 
 const handleAdd = () => {
   form.id = null
+  form.projectCode = ''
   form.projectName = ''
   form.projectOwner = ''
   form.repositories = [

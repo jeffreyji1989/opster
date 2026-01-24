@@ -99,4 +99,16 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "monitor_url")
     private String monitorUrl;
+
+    /**
+     * 仓库类型: 0-前端 1-后端 2-管理后台 3-移动端
+     */
+    @Column(name = "repository_type", columnDefinition = "INTEGER DEFAULT 1")
+    private Integer repositoryType;
+
+    /**
+     * 前端构建命令（如：npm run build）
+     */
+    @Column(name = "build_cmd")
+    private String buildCmd;
 }

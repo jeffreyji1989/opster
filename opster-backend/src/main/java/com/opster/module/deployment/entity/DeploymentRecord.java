@@ -73,4 +73,46 @@ public class DeploymentRecord extends BaseEntity {
      */
     @Column(name = "log_path", columnDefinition = "VARCHAR(255)")
     private String logPath;
+
+    /**
+     * 备份文件路径
+     */
+    @Column(name = "backup_file_path", length = 500)
+    private String backupFilePath;
+
+    /**
+     * 版本描述
+     */
+    @Column(name = "version_description", length = 500)
+    private String versionDescription;
+
+    /**
+     * Git提交哈希
+     */
+    @Column(name = "git_commit_hash", length = 100)
+    private String gitCommitHash;
+
+    /**
+     * 备份文件大小（字节）
+     */
+    @Column(name = "backup_file_size")
+    private Long backupFileSize;
+
+    /**
+     * 版本标签
+     */
+    @Column(name = "version_tag", length = 50)
+    private String versionTag;
+
+    /**
+     * 是否为回退记录
+     */
+    @Column(name = "is_rollback")
+    private Boolean isRollback = false;
+
+    /**
+     * 回退源记录ID
+     */
+    @Column(name = "rollback_from_id")
+    private Integer rollbackFromId;
 }

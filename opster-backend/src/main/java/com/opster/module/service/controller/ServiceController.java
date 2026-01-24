@@ -2,23 +2,30 @@ package com.opster.module.service.controller;
 
 import com.opster.module.service.entity.AppService;
 import com.opster.module.service.service.AppServiceService;
+import com.opster.module.service.service.DeploymentOrchestrationService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * 服务管理控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/service")
 public class ServiceController {
 
     @Autowired
     private AppServiceService appServiceService;
+
+    @Autowired
+    private DeploymentOrchestrationService deploymentOrchestrationService;
 
     /**
      * 获取所有服务
@@ -123,7 +130,7 @@ public class ServiceController {
     }
 
     // --- Monitor ---
-    
+
     /**
      * 监控查询
      */
@@ -131,5 +138,45 @@ public class ServiceController {
     public List<Map<String, Object>> monitor(@RequestParam(required = false) Integer projectId,
                                              @RequestParam(required = false) String ip) {
         return appServiceService.searchMonitor(projectId, ip);
+    }
+
+    // --- 异步部署 API ---
+
+    /**
+     * 异步发版（后台执行，不打开 WebSocket 窗口）
+     */
+    @PostMapping("/{id}/deploy-async")
+    public Map<String, Object> deployAsync(@PathVariable Integer id) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Integer deploymentRecordId = deploymentOrchestrationService.executeDeploymentAsync(id);
+            result.put("success", true);
+            result.put("message", "正在发版，详细信息去发版记录查看");
+            result.put("deploymentRecordId", deploymentRecordId);
+        } catch (Exception e) {
+            log.error("Async deployment failed for service: {}", id, e);
+            result.put("success", false);
+            result.put("message", "发版失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 异步回退到指定版本
+     */
+    @PostMapping("/deployment/{recordId}/rollback-async")
+    public Map<String, Object> rollbackToVersionAsync(@PathVariable Integer recordId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            Integer newRecordId = deploymentOrchestrationService.rollbackToSpecificVersionAsync(recordId);
+            result.put("success", true);
+            result.put("message", "正在回退，详细信息去发版记录查看");
+            result.put("deploymentRecordId", newRecordId);
+        } catch (Exception e) {
+            log.error("Async rollback failed for record: {}", recordId, e);
+            result.put("success", false);
+            result.put("message", "回退失败: " + e.getMessage());
+        }
+        return result;
     }
 }
