@@ -79,46 +79,53 @@ public class ServiceMonitorService implements InitializingBean {
     private void checkServiceStatus(AppService service) {
         try {
             logger.debug("Checking status for service: {} (ID: {})", service.getProjectId(), service.getId());
-            
+
             // 获取服务器信息
             Optional<Server> serverOptional = serverRepository.findById(service.getServerId());
             if (!serverOptional.isPresent()) {
                 logger.warn("Server not found for service ID: {}", service.getId());
                 return;
             }
-            
+
             Server server = serverOptional.get();
             String ip = server.getIp();
             Integer port = service.getPort();
             String monitorUrl = service.getMonitorUrl();
-            
+
             boolean isAlive = false;
-            
+
             // 优先使用监控地址进行检查
             if (monitorUrl != null && !monitorUrl.trim().isEmpty()) {
+                logger.debug("Checking HTTP monitor URL: {}", monitorUrl);
                 isAlive = checkHttpStatus(monitorUrl);
-            } 
+            }
             // 如果没有监控地址，使用IP+端口进行检查
             else if (ip != null && port != null) {
+                logger.debug("Checking TCP port {}:{} for service ID: {}", ip, port, service.getId());
                 isAlive = checkTcpPort(ip, port);
+            } else {
+                logger.warn("Service ID {} has no monitor URL or port configured, skipping status check", service.getId());
+                return;
             }
-            
+
             // 更新服务状态
             RunStatus newStatus = isAlive ? RunStatus.NORMAL : RunStatus.ABNORMAL; // 1-正常, 2-异常
-            if (service.getRunStatus() != newStatus) {
+            RunStatus currentStatus = service.getRunStatus();
+
+            logger.info("Service status check result - ID: {}, MonitorUrl: {}, Port: {}, IsAlive: {}, CurrentStatus: {}, NewStatus: {}",
+                    service.getId(), monitorUrl, port, isAlive, currentStatus, newStatus);
+
+            if (currentStatus != newStatus) {
                 service.setRunStatus(newStatus);
                 appServiceRepository.save(service);
-                logger.info("Service status updated: {} (ID: {}) - {}", 
+                logger.info("Service status updated: {} (ID: {}) - {}",
                         service.getProjectId(), service.getId(), isAlive ? "正常" : "异常");
             }
-            
+
         } catch (Exception e) {
             logger.error("Error checking service status for ID {}: {}", service.getId(), e.getMessage(), e);
-            // 发生异常时将服务状态设置为异常
-            if (service.getRunStatus() != RunStatus.ABNORMAL) {
-                service.setRunStatus(RunStatus.ABNORMAL);
-                appServiceRepository.save(service);
-            }
+            // 发生异常时记录日志，但不修改状态（避免误判）
+            logger.warn("Service status check failed for ID {}, keeping current status", service.getId());
         }
     }
 
@@ -132,11 +139,16 @@ public class ServiceMonitorService implements InitializingBean {
         try {
             URL url = new URL(urlStr);
             connection = (HttpURLConnection) url.openConnection();
-            connection.setConnectTimeout(3000);
-            connection.setReadTimeout(3000);
+            connection.setConnectTimeout(5000);  // 增加连接超时到 5 秒
+            connection.setReadTimeout(5000);     // 增加读取超时到 5 秒
             connection.setRequestMethod("GET");
+            connection.setInstanceFollowRedirects(true);  // 跟随重定向
+
             int responseCode = connection.getResponseCode();
-            return responseCode >= 200 && responseCode < 400;
+            boolean isSuccess = responseCode >= 200 && responseCode < 400;
+
+            logger.debug("HTTP check for {} - ResponseCode: {}, Success: {}", urlStr, responseCode, isSuccess);
+            return isSuccess;
         } catch (IOException e) {
             logger.debug("HTTP check failed for {}: {}", urlStr, e.getMessage());
             return false;
@@ -157,8 +169,11 @@ public class ServiceMonitorService implements InitializingBean {
         Socket socket = null;
         try {
             socket = new Socket();
-            socket.connect(new InetSocketAddress(ip, port), 3000);
-            return true;
+            socket.connect(new InetSocketAddress(ip, port), 5000);  // 增加超时到 5 秒
+            boolean isSuccess = socket.isConnected() && socket.isBound();
+
+            logger.debug("TCP port check for {}:{} - Success: {}", ip, port, isSuccess);
+            return isSuccess;
         } catch (IOException e) {
             logger.debug("TCP check failed for {}:{}, {}", ip, port, e.getMessage());
             return false;
