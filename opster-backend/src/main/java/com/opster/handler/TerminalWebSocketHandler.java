@@ -82,6 +82,7 @@ public class TerminalWebSocketHandler extends TextWebSocketHandler {
 
                 // Connect SSH
                 sendMessage(wsSession, ">>> Connecting to " + server.getIp() + "...");
+                // SshUtils.connect 内部会自动解密密码
                 Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
                 holder.sshSession = sshSession;
                 

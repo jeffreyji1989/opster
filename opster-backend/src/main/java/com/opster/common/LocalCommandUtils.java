@@ -183,6 +183,9 @@ public class LocalCommandUtils {
     /**
      * 分析日志行，识别成功/失败标识
      *
+     * 注意：此方法主要用于分析 Maven 和 npm 的构建输出
+     * 对于 Git 等命令行工具，建议只依赖退出码判断成功/失败
+     *
      * @param line 日志行
      * @param currentStatus 当前状态
      * @return 分析后的状态
@@ -190,10 +193,10 @@ public class LocalCommandUtils {
     private static boolean analyzeLogLine(String line, boolean currentStatus) {
         String lowerLine = line.toLowerCase();
 
-        // 识别maven打包失败
+        // 识别maven打包失败（更精确的匹配，避免误判）
         if (lowerLine.contains("build failure") ||
             lowerLine.contains("compilation failure") ||
-            lowerLine.contains("error")) {
+            (lowerLine.contains("[error]") && !lowerLine.contains("warning"))) {
             return false;
         }
 

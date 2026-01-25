@@ -1,5 +1,6 @@
 package com.opster.module.server.controller;
 
+import com.opster.common.SecurityUtils;
 import com.opster.module.server.entity.Server;
 import com.opster.module.server.service.ServerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,7 +8,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 服务器管理控制器
@@ -73,5 +76,35 @@ public class ServerController {
     public boolean remove(@PathVariable Integer id) {
         serverService.deleteById(id);
         return true;
+    }
+
+    /**
+     * 测试服务器密码（调试用）
+     * 返回密码的加密状态信息
+     */
+    @GetMapping("/test-password/{id}")
+    public Map<String, Object> testPassword(@PathVariable Integer id) {
+        Map<String, Object> result = new HashMap<>();
+        Server server = serverService.findById(id).orElse(null);
+
+        if (server == null) {
+            result.put("error", "服务器不存在");
+            return result;
+        }
+
+        String originalPassword = server.getPassword();
+        String decryptedPassword = SecurityUtils.decrypt(originalPassword);
+        boolean isEncrypted = SecurityUtils.isEncrypted(originalPassword);
+
+        result.put("serverId", server.getId());
+        result.put("ip", server.getIp());
+        result.put("username", server.getUsername());
+        result.put("originalPasswordLength", originalPassword != null ? originalPassword.length() : 0);
+        result.put("decryptedPasswordLength", decryptedPassword != null ? decryptedPassword.length() : 0);
+        result.put("isEncrypted", isEncrypted);
+        result.put("originalPasswordPreview", originalPassword != null ? originalPassword.substring(0, Math.min(10, originalPassword.length())) : null);
+        result.put("decryptedPasswordPreview", decryptedPassword != null ? decryptedPassword.substring(0, Math.min(10, decryptedPassword.length())) : null);
+
+        return result;
     }
 }

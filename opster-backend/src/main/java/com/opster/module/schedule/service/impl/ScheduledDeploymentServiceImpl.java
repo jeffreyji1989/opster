@@ -270,6 +270,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     private void doDeployment(Session sshSession, Server server, AppService service, Project project,
                            String logFilePath, String deployPath) throws Exception {
         // 连接SSH
+        // SshUtils.connect 内部会自动解密密码
         sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
         // 准备环境变量

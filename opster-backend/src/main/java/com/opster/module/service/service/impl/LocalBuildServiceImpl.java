@@ -312,7 +312,11 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 logger.info("检测到Git仓库已存在，执行git pull...");
                 String pullCmd = String.format("git fetch origin && git checkout %s && git pull origin %s",
                     gitBranch, gitBranch);
-                return LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession);
+                boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession);
+                if (!result) {
+                    logger.error("git pull 命令执行失败");
+                }
+                return result;
             } else {
                 // 目录不存在，执行clone
                 logger.info("Git仓库不存在，执行git clone...");
@@ -323,7 +327,11 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 LocalCommandUtils.createDirectories(sourceDir);
 
                 String cloneCmd = String.format("git clone -b %s %s .", gitBranch, gitUrl);
-                return LocalCommandUtils.executeCommand(sourceDir, cloneCmd, wsSession);
+                boolean result = LocalCommandUtils.executeCommand(sourceDir, cloneCmd, wsSession);
+                if (!result) {
+                    logger.error("git clone 命令执行失败");
+                }
+                return result;
             }
         } catch (Exception e) {
             logger.error("Git操作失败", e);

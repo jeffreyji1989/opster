@@ -39,6 +39,7 @@ public class ServerMonitorServiceImpl implements ServerMonitorService {
         
         Session session = null;
         try {
+            // SshUtils.connect 内部会自动解密密码
             session = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             
             // Execute compound command

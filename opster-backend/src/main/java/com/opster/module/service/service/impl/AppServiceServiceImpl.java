@@ -156,6 +156,7 @@ public class AppServiceServiceImpl implements AppServiceService {
         StringBuilder logs = new StringBuilder();
         Session session = null;
         try {
+            // SshUtils.connect 内部会自动解密密码
             session = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             String cmd = "tail -n 100 " + service.getLogPath();
             logs.append(SshUtils.exec(session, cmd));

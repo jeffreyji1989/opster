@@ -146,6 +146,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 6. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             logger.log(">>> 已连接");
 
@@ -254,6 +255,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             sendMessage(wsSession, ">>> 已连接");
 
@@ -303,6 +305,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
             String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
@@ -352,6 +355,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
             Project project = projectRepository.findById(service.getProjectId())
@@ -419,6 +423,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 5. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
             String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
@@ -1004,6 +1009,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 5. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             logger.log(">>> 已连接");
 
@@ -1121,6 +1127,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 4. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
+            // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
             String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();

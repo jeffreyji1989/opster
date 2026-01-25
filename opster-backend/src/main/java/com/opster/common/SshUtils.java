@@ -23,15 +23,38 @@ public class SshUtils {
     public static Session connect(String host, int port, String user, String password) throws Exception {
         JSch jsch = new JSch();
         Session session = jsch.getSession(user, host, port);
+
         // 解密密码
         String decryptedPassword = SecurityUtils.decrypt(password);
+
+        // 输出调试信息（不输出实际密码，只输出长度和格式）
+        log.info("SSH连接信息 - 主机: {}, 端口: {}, 用户: {}, 原始密码长度: {}, 解密后密码长度: {}",
+                 host, port, user,
+                 password != null ? password.length() : 0,
+                 decryptedPassword != null ? decryptedPassword.length() : 0);
+
         session.setPassword(decryptedPassword);
 
+        // 配置 SSH 连接参数（使用最基本的配置，避免兼容性问题）
         Properties config = new Properties();
+        // 禁用严格主机密钥检查
         config.put("StrictHostKeyChecking", "no");
+
+        // 设置认证方式（优先使用密码认证）
+        config.put("PreferredAuthentications", "password,publickey,keyboard-interactive");
+
         session.setConfig(config);
         session.setTimeout(30000); // 30s timeout
-        session.connect();
+
+        log.info("开始连接 SSH 服务器: {}:{}", host, port);
+        try {
+            session.connect();
+            log.info("SSH 连接成功: {}:{}", host, port);
+        } catch (Exception e) {
+            log.error("SSH 连接失败: {}:{}, 错误: {}", host, port, e.getMessage(), e);
+            throw e;
+        }
+
         return session;
     }
 
