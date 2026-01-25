@@ -19,6 +19,7 @@ public interface LocalBuildService {
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
      * @param buildCmd 构建命令（Maven或npm命令）
+     * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-backend
      * @param wsSession WebSocket会话，用于实时推送日志
      * @return 打包产物的本地路径（jar文件或zip文件）
      * @throws Exception 打包过程中发生的异常
@@ -28,6 +29,7 @@ public interface LocalBuildService {
                       String gitUrl,
                       String gitBranch,
                       String buildCmd,
+                      String projectPath,
                       WebSocketSession wsSession) throws Exception;
 
     /**
@@ -37,6 +39,7 @@ public interface LocalBuildService {
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
      * @param mavenCmd Maven构建命令
+     * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-backend
      * @param wsSession WebSocket会话
      * @return 打包产物的本地路径（jar文件）
      * @throws Exception 打包过程中发生的异常
@@ -45,6 +48,7 @@ public interface LocalBuildService {
                            String gitUrl,
                            String gitBranch,
                            String mavenCmd,
+                           String projectPath,
                            WebSocketSession wsSession) throws Exception;
 
     /**
@@ -54,6 +58,7 @@ public interface LocalBuildService {
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
      * @param buildCmd 构建命令（如：npm run build）
+     * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-frontend
      * @param wsSession WebSocket会话
      * @return 打包产物的本地路径（zip文件）
      * @throws Exception 打包过程中发生的异常
@@ -62,6 +67,7 @@ public interface LocalBuildService {
                          String gitUrl,
                          String gitBranch,
                          String buildCmd,
+                         String projectPath,
                          WebSocketSession wsSession) throws Exception;
 
     /**

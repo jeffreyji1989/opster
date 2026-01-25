@@ -111,4 +111,11 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "build_cmd")
     private String buildCmd;
+
+    /**
+     * 项目路径（相对Git仓库的子目录路径）
+     * 例如：opster-backend、opster-frontend
+     */
+    @Column(name = "project_path")
+    private String projectPath;
 }

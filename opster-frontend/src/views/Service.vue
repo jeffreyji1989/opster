@@ -174,6 +174,14 @@
 
             <el-row :gutter="20">
               <el-col :span="12">
+                <el-form-item label="项目路径" label-width="70px">
+                  <el-input v-model="item.projectPath" placeholder="例如：opster-backend、opster-frontend" clearable />
+                  <span style="font-size: 12px; color: #999;">
+                    相对于Git仓库的子目录路径，如果项目在仓库根目录则留空
+                  </span>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
                 <!-- 后端项目显示 Maven 命令 -->
                 <el-form-item v-if="item.repositoryType === 1" label="Maven命令" label-width="70px">
                   <el-input v-model="item.mavenCmd" type="textarea" :rows="1" placeholder="mvn clean package -DskipTests" />
@@ -183,14 +191,15 @@
                   <el-input v-model="item.buildCmd" type="textarea" :rows="1" placeholder="npm run build" />
                 </el-form-item>
               </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
               <el-col :span="12">
                 <el-form-item label="启动脚本" label-width="70px">
                   <el-input v-model="item.startScript" type="textarea" :rows="1" placeholder="./start.sh" />
                 </el-form-item>
               </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="24">
+              <el-col :span="12">
                 <el-form-item label="监控地址" label-width="70px">
                   <el-input v-model="item.monitorUrl" />
                 </el-form-item>
@@ -455,6 +464,7 @@ const handleProjectChange = (projectId) => {
         gitBranch: 'master',
         deployPath: repo.projectPath || '/var/www/' + (project.projectName || 'app'),
         logPath: isFrontend ? '' : '/var/log/' + (project.projectName || 'app') + '.log',
+        projectPath: repo.projectPath || '', // 新增字段，项目路径
         mavenCmd: isFrontend ? '' : 'mvn clean package -DskipTests',
         buildCmd: isFrontend ? 'npm install && npm run build' : '', // 新增字段
         startScript: isFrontend ? '' : './start.sh',
@@ -547,6 +557,7 @@ const handleEdit = (row) => {
     gitBranch: row.gitBranch,
     deployPath: row.deployPath,
     logPath: row.logPath,
+    projectPath: row.projectPath || '', // 新增字段，项目路径
     mavenCmd: row.mavenCmd,
     buildCmd: row.buildCmd, // 新增字段
     startScript: row.startScript,

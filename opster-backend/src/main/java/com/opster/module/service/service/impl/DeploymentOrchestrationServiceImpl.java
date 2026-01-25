@@ -130,6 +130,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // 5. 本地打包
             logger.log(">>> 开始本地打包...");
             String gitUrl = determineGitUrl(service, project);
+            String projectPath = determineProjectPath(service, project);
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
@@ -139,6 +140,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 service.getGitBranch(),
                 service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
                     service.getBuildCmd() : service.getMavenCmd(),
+                projectPath,
                 wsSession
             );
 
@@ -534,6 +536,31 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         }
 
         throw new RuntimeException("未找到Git仓库地址");
+    }
+
+    /**
+     * 确定项目路径
+     * 优先级：Service.projectPath > Project.repositories[].projectPath > null
+     */
+    private String determineProjectPath(AppService service, Project project) {
+        // 优先使用服务级别的项目路径
+        if (StrUtil.isNotBlank(service.getProjectPath())) {
+            return service.getProjectPath();
+        }
+
+        // 从项目的repositories中查找
+        if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
+            RepositoryType repoType = service.getRepositoryType() != null ?
+                RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND;
+
+            return project.getRepositories().stream()
+                .filter(r -> r.getType() == repoType)
+                .findFirst()
+                .map(com.opster.module.project.dto.RepositoryDTO::getProjectPath)
+                .orElse(null);
+        }
+
+        return null;
     }
 
     /**
@@ -961,6 +988,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // 4. 本地打包
             logger.log(">>> 开始本地打包...");
             String gitUrl = determineGitUrl(service, project);
+            String projectPath = determineProjectPath(service, project);
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
@@ -970,6 +998,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 service.getGitBranch(),
                 service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
                     service.getBuildCmd() : service.getMavenCmd(),
+                projectPath,
                 null // 无 WebSocket
             );
 

@@ -41,15 +41,16 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                              String gitUrl,
                              String gitBranch,
                              String buildCmd,
+                             String projectPath,
                              WebSocketSession wsSession) throws Exception {
         // 根据仓库类型选择构建方式
         if (repositoryType == RepositoryType.FRONTEND ||
             repositoryType == RepositoryType.MOBILE) {
             // 前端或移动端项目使用npm构建
-            return buildNpmArtifact(projectCode, gitUrl, gitBranch, buildCmd, wsSession);
+            return buildNpmArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession);
         } else {
             // 后端或管理后台项目使用Maven构建
-            return buildMavenArtifact(projectCode, gitUrl, gitBranch, buildCmd, wsSession);
+            return buildMavenArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession);
         }
     }
 
@@ -58,6 +59,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                    String gitUrl,
                                    String gitBranch,
                                    String mavenCmd,
+                                   String projectPath,
                                    WebSocketSession wsSession) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
@@ -88,8 +90,24 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 throw new Exception("Git operation failed");
             }
 
-            // 4. 查找项目根目录（假设source目录下可能有多个子项目）
-            Path projectRoot = findMavenProjectRoot(sourceDir);
+            // 4. 处理项目路径（如果配置了子目录）
+            Path buildDir = sourceDir;
+            if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+                // 防止路径穿越攻击
+                if (projectPath.contains("..")) {
+                    logger.error("项目路径包含非法字符: " + projectPath);
+                    throw new Exception("Invalid project path");
+                }
+                buildDir = sourceDir.resolve(projectPath);
+                if (!Files.exists(buildDir)) {
+                    logger.error("项目路径不存在: " + buildDir);
+                    throw new Exception("Project path does not exist: " + projectPath);
+                }
+                logger.info("使用项目路径: " + projectPath);
+            }
+
+            // 5. 查找项目根目录
+            Path projectRoot = findMavenProjectRoot(buildDir);
             logger.info("项目根目录: " + projectRoot);
 
             // 5. Maven打包
@@ -133,6 +151,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                 String gitUrl,
                                 String gitBranch,
                                 String buildCmd,
+                                String projectPath,
                                 WebSocketSession wsSession) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
@@ -163,8 +182,24 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 throw new Exception("Git operation failed");
             }
 
-            // 4. 查找package.json（前端项目根目录）
-            Path projectRoot = findNpmProjectRoot(sourceDir);
+            // 4. 处理项目路径（如果配置了子目录）
+            Path buildDir = sourceDir;
+            if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+                // 防止路径穿越攻击
+                if (projectPath.contains("..")) {
+                    logger.error("项目路径包含非法字符: " + projectPath);
+                    throw new Exception("Invalid project path");
+                }
+                buildDir = sourceDir.resolve(projectPath);
+                if (!Files.exists(buildDir)) {
+                    logger.error("项目路径不存在: " + buildDir);
+                    throw new Exception("Project path does not exist: " + projectPath);
+                }
+                logger.info("使用项目路径: " + projectPath);
+            }
+
+            // 5. 查找package.json（前端项目根目录）
+            Path projectRoot = findNpmProjectRoot(buildDir);
             logger.info("项目根目录: " + projectRoot);
 
             // 5. npm安装依赖
