@@ -35,6 +35,6 @@ spring:
 
 opster:
   deploy-path: /Users/deffrey/D1_JEFFREY/aiworkspace/deploy
-  maven-home: /Users/deffrey/D1_JEFFREY/soft/apache-maven-4.0.0
-  java-home: /Library/Java/JavaVirtualMachines/jdk-25.jdk
+  maven-home: /Users/deffrey/D1_JEFFREY/soft/apache-maven-3.8.6
+  java-home: /Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
   encrypt-key: "opster-secret-key"

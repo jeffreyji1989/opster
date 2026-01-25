@@ -900,38 +900,106 @@ const chatInput = ref('')
 const recommendedCommands = ref([])
 
 const handleTerminal = (row) => {
+  // 重置所有状态
   chatMessages.value = []
   recommendedCommands.value = []
   chatInput.value = ''
+
+  // 清理旧的 WebSocket 连接
+  if (terminalSocket.value) {
+    try {
+      terminalSocket.value.close()
+    } catch (e) {
+      console.warn('关闭旧 WebSocket 连接失败:', e)
+    }
+    terminalSocket.value = null
+  }
+
   terminalVisible.value = true
+
   nextTick(() => {
+    // 先清理旧的 terminal 实例
+    if (terminal.value) {
+      try {
+        terminal.value.dispose()
+      } catch (e) {
+        console.warn('清理旧 terminal 实例失败:', e)
+      }
+      terminal.value = null
+    }
+
+    // 清理 addon 引用
+    fitAddon.value = null
+    attachAddon.value = null
+
+    // 初始化新的 terminal
     initTerminal()
+
+    // 创建 WebSocket 连接
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.hostname
     const port = '8080'
     const wsUrl = `${protocol}//${host}:${port}/ws/terminal/${row.id}`
+
     try {
       terminalSocket.value = new WebSocket(wsUrl)
+
       terminalSocket.value.onopen = () => {
         attachAddon.value = new AttachAddon(terminalSocket.value)
         terminal.value.loadAddon(attachAddon.value)
         terminal.value.write('>>> 终端连接成功\r\n')
       }
-    } catch (e) {}
+
+      terminalSocket.value.onerror = (error) => {
+        console.error('WebSocket 连接错误:', error)
+        terminal.value.write('\r\n>>> 连接失败，请检查后端服务是否启动\r\n')
+      }
+
+      terminalSocket.value.onclose = (event) => {
+        console.log('WebSocket 连接关闭:', event.code, event.reason)
+        if (!event.wasClean) {
+          terminal.value.write('\r\n>>> 连接异常关闭\r\n')
+        }
+      }
+    } catch (e) {
+      console.error('创建 WebSocket 失败:', e)
+      terminal.value.write('\r\n>>> 创建连接失败，请检查网络或后端服务\r\n')
+    }
   })
 }
 
 const initTerminal = () => {
-  if (terminal.value) terminal.value.dispose()
-  terminal.value = new Terminal({
-    cursorBlink: true,
-    fontSize: 14,
-    theme: { background: '#282a36', foreground: '#f8f8f2' }
-  })
-  fitAddon.value = new FitAddon()
-  terminal.value.loadAddon(fitAddon.value)
-  terminal.value.open(terminalRef.value)
-  fitAddon.value.fit()
+  // 检查 DOM 元素是否存在
+  if (!terminalRef.value) {
+    console.error('Terminal 容器元素不存在')
+    return
+  }
+
+  // 安全地清理旧的 terminal 实例（如果存在）
+  if (terminal.value) {
+    try {
+      terminal.value.dispose()
+    } catch (e) {
+      console.warn('Terminal dispose error:', e)
+    }
+    terminal.value = null
+  }
+
+  try {
+    // 创建新的 terminal 实例
+    terminal.value = new Terminal({
+      cursorBlink: true,
+      fontSize: 14,
+      theme: { background: '#282a36', foreground: '#f8f8f2' }
+    })
+
+    fitAddon.value = new FitAddon()
+    terminal.value.loadAddon(fitAddon.value)
+    terminal.value.open(terminalRef.value)
+    fitAddon.value.fit()
+  } catch (e) {
+    console.error('初始化 terminal 失败:', e)
+  }
 }
 
 const sendChatMessage = async () => {
@@ -952,9 +1020,48 @@ const sendCommandToTerminal = (cmd) => {
 
 watch(terminalVisible, (val) => {
   if (!val) {
-    if (terminalSocket.value) terminalSocket.value.close()
-    if (terminal.value) terminal.value.dispose()
+    // 清理 WebSocket 连接
+    if (terminalSocket.value) {
+      try {
+        terminalSocket.value.close()
+      } catch (e) {
+        console.warn('关闭 WebSocket 失败:', e)
+      }
+      terminalSocket.value = null
+    }
+
+    // 清理 terminal 实例
+    if (terminal.value) {
+      try {
+        terminal.value.dispose()
+      } catch (e) {
+        console.warn('销毁 terminal 实例失败:', e)
+      }
+      terminal.value = null
+    }
+
+    // 清理 addon 引用
+    fitAddon.value = null
+    attachAddon.value = null
   }
+})
+
+// 组件卸载时清理终端资源
+onUnmounted(() => {
+  if (terminalSocket.value) {
+    terminalSocket.value.close()
+    terminalSocket.value = null
+  }
+  if (terminal.value) {
+    try {
+      terminal.value.dispose()
+    } catch (e) {
+      console.warn('Terminal dispose error on unmount:', e)
+    }
+    terminal.value = null
+  }
+  fitAddon.value = null
+  attachAddon.value = null
 })
 
 onMounted(fetchData)
