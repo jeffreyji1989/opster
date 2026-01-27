@@ -238,9 +238,12 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             record.setServiceName("Service-" + service.getId());
             record.setStatus(DeploymentStatus.IN_PROGRESS);
 
+            // 构建远程部署目录路径
+            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+
             // 生成日志文件路径
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            String logDir = service.getDeployPath() + "/p_log";
+            String logDir = remoteDir + "/p_log";
             String logFilePath = logDir + "/" + timestamp + ".log";
             record.setLogPath(logFilePath);
 
@@ -248,7 +251,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             log.info("Created deployment record: {} for scheduled task: {}", record.getId(), task.getId());
 
             // 4. 执行发版流程
-            doDeployment(sshSession, server, service, project, logFilePath, service.getDeployPath());
+            doDeployment(sshSession, server, service, project, logFilePath, remoteDir);
 
             log.info("Scheduled deployment task completed: {} - {}", task.getId(), task.getName());
 
@@ -265,10 +268,29 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     }
 
     /**
+     * 构建远程服务器部署目录路径
+     * 如果配置了项目路径，则在基础路径后追加项目路径
+     *
+     * @param service 服务配置
+     * @param projectCode 项目编码
+     * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
+     */
+    private String buildRemoteDir(AppService service, String projectCode) {
+        String baseDir = service.getDeployPath() + "/" + projectCode;
+
+        // 如果配置了项目路径，则追加到基础路径后
+        if (StrUtil.isNotBlank(service.getProjectPath())) {
+            return baseDir + "/" + service.getProjectPath();
+        }
+
+        return baseDir;
+    }
+
+    /**
      * 执行发版核心流程
      */
     private void doDeployment(Session sshSession, Server server, AppService service, Project project,
-                           String logFilePath, String deployPath) throws Exception {
+                           String logFilePath, String remoteDir) throws Exception {
         // 连接SSH
         // SshUtils.connect 内部会自动解密密码
         sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
@@ -277,7 +299,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
         String envVars = String.format("export JAVA_HOME=%s && export PATH=$JAVA_HOME/bin:$PATH && export M2_HOME=%s && export PATH=$M2_HOME/bin:$PATH", javaHome, mavenHome);
 
         // 创建p_log目录
-        String createLogDirCmd = String.format("mkdir -p %s", deployPath + "/p_log");
+        String createLogDirCmd = String.format("mkdir -p %s", remoteDir + "/p_log");
         executeCommand(sshSession, createLogDirCmd);
 
         // 写入开始日志
@@ -314,7 +336,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
         String branch = service.getGitBranch();
         String gitCmd = String.format(
                 "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",
-                deployPath, deployPath, branch, deployPath, deployPath, branch, gitUrl
+                remoteDir, remoteDir, branch, remoteDir, remoteDir, branch, gitUrl
         );
         executeCommandWithLog(sshSession, gitCmd, logFilePath);
 
@@ -322,20 +344,20 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
         String mavenMessage = ">>> Executing Maven build...";
         log.info(mavenMessage);
         String mavenCmd = service.getMavenCmd();
-        String buildCmd = String.format("source /etc/profile && %s && cd %s/source && %s", envVars, deployPath, mavenCmd);
+        String buildCmd = String.format("source /etc/profile && %s && cd %s/source && %s", envVars, remoteDir, mavenCmd);
         executeCommandWithLog(sshSession, buildCmd, logFilePath);
 
         // Copy Jar
         String copyMessage = ">>> Deploying Jar...";
         log.info(copyMessage);
-        String copyCmd = String.format("cp %s/source/target/*.jar %s/", deployPath, deployPath);
+        String copyCmd = String.format("cp %s/source/target/*.jar %s/", remoteDir, remoteDir);
         executeCommandWithLog(sshSession, copyCmd, logFilePath);
 
         // Restart
         String restartMessage = ">>> Restarting service...";
         log.info(restartMessage);
         String startScript = service.getStartScript();
-        String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, deployPath, startScript);
+        String restartCmd = String.format("source /etc/profile && %s && cd %s && sh %s", envVars, remoteDir, startScript);
         executeCommandWithLog(sshSession, restartCmd, logFilePath);
 
         // 更新服务状态
