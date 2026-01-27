@@ -151,7 +151,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 已连接");
 
             // 7. 创建远程目录结构
-            String remoteDir = service.getDeployPath() + "/" + projectCode;
+            String remoteDir = buildRemoteDir(service, projectCode);
             logger.log(">>> 创建远程目录: " + remoteDir);
             executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs,p_log}");
 
@@ -308,7 +308,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+            String remoteDir = buildRemoteDir(service, project.getProjectCode());
 
             // 从备份目录恢复
             sendMessage(wsSession, ">>> 从备份目录恢复...");
@@ -360,7 +360,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+            String remoteDir = buildRemoteDir(service, project.getProjectCode());
 
             // 停止服务
             String stopCmd = String.format(
@@ -426,7 +426,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+            String remoteDir = buildRemoteDir(service, project.getProjectCode());
 
             // 6. 回退前先备份当前版本（防止回退失败）
             logger.log(">>> 备份当前版本（防止回退失败）...");
@@ -517,6 +517,46 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 sendMessage(wsSession, ">>> Done.");
             }
         }
+    }
+
+    /**
+     * 构建远程服务器部署目录路径
+     * 如果配置了项目路径，则在基础路径后追加项目路径
+     *
+     * @param service 服务配置
+     * @param projectCode 项目编码
+     * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
+     * @throws IllegalArgumentException 如果参数为空或无效
+     */
+    private String buildRemoteDir(AppService service, String projectCode) {
+        // 参数验证
+        if (service == null) {
+            throw new IllegalArgumentException("服务配置不能为空");
+        }
+        if (StrUtil.isBlank(projectCode)) {
+            throw new IllegalArgumentException("项目编码不能为空");
+        }
+        String deployPath = service.getDeployPath();
+        if (StrUtil.isBlank(deployPath)) {
+            throw new IllegalArgumentException("部署路径不能为空");
+        }
+
+        // 标准化路径：去除首尾空格，确保不以斜杠结尾
+        String normalizedBasePath = deployPath.trim().replaceAll("/+$", "");
+        String normalizedProjectCode = projectCode.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+
+        // 构建基础路径
+        String baseDir = normalizedBasePath + "/" + normalizedProjectCode;
+
+        // 如果配置了项目路径，则追加到基础路径后
+        if (StrUtil.isNotBlank(service.getProjectPath())) {
+            String normalizedProjectPath = service.getProjectPath().trim()
+                    .replaceAll("^/+", "")  // 去除开头斜杠
+                    .replaceAll("/+$", "");  // 去除结尾斜杠
+            return baseDir + "/" + normalizedProjectPath;
+        }
+
+        return baseDir;
     }
 
     /**
@@ -738,7 +778,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
 
-        String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+        String remoteDir = buildRemoteDir(service, project.getProjectCode());
         String envVars = String.format(
             "export JAVA_HOME=%s && export M2_HOME=%s",
             javaHome, mavenHome
@@ -760,7 +800,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
 
-        String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+        String remoteDir = buildRemoteDir(service, project.getProjectCode());
         String envVars = String.format(
             "export JAVA_HOME=%s && export M2_HOME=%s",
             javaHome, mavenHome
@@ -1014,7 +1054,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 已连接");
 
             // 6. 创建远程目录结构
-            String remoteDir = service.getDeployPath() + "/" + projectCode;
+            String remoteDir = buildRemoteDir(service, projectCode);
             logger.log(">>> 创建远程目录: " + remoteDir);
             executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs,p_log}");
 
@@ -1130,7 +1170,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = service.getDeployPath() + "/" + project.getProjectCode();
+            String remoteDir = buildRemoteDir(service, project.getProjectCode());
 
             // 5. 回退前先备份当前版本
             logger.log(">>> 备份当前版本（防止回退失败）...");
