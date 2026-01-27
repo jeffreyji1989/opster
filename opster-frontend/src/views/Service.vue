@@ -51,7 +51,13 @@
           {{ getProjectName(scope.row.projectId) }}
         </template>
       </el-table-column>
-      <el-table-column prop="repoGitUrl" label="仓库" show-overflow-tooltip />
+      <el-table-column label="类型" width="100">
+        <template #default="scope">
+          <el-tag :type="getRepoTypeColor(scope.row.repositoryType)" size="small">
+            {{ getRepoTypeLabel(scope.row.repositoryType) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="服务器" width="150">
         <template #default="scope">
           {{ getServerName(scope.row.serverId) }}
@@ -445,6 +451,17 @@ const repoTypeMap = {
   3: '移动端'
 }
 const getRepoTypeLabel = (type) => repoTypeMap[type] || '未知'
+
+// 仓库类型颜色映射
+const getRepoTypeColor = (type) => {
+  const colorMap = {
+    0: 'success',    // 前端 - 绿色
+    1: 'primary',    // 后端 - 蓝色
+    2: 'warning',    // 管理后台 - 橙色
+    3: 'info'        // 移动端 - 灰色
+  }
+  return colorMap[type] || 'default'
+}
 
 const form = reactive({
   id: null,
