@@ -143,7 +143,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     }
 
     /**
-     * 定时扫描并执行待执行的定时发版任务（每5分钟执行一次）
+     * 定时扫描并执行待执行的定时发版任务（每1分钟执行一次）
      */
     @Override
     @Scheduled(cron = "0 */1 * * * *")
