@@ -60,7 +60,11 @@
       <el-table-column prop="env" label="环境" width="80" />
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="gitBranch" label="分支" width="100" />
-      <el-table-column prop="deployPath" label="部署路径" show-overflow-tooltip />
+      <el-table-column label="部署路径" show-overflow-tooltip>
+        <template #default="scope">
+          {{ getFullDeployPath(scope.row) }}
+        </template>
+      </el-table-column>
       <el-table-column prop="runStatus" label="运行状态" width="100">
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.runStatus)">
@@ -161,20 +165,23 @@
 
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="部署路径" label-width="70px">
+                <el-form-item label="部署根路径" label-width="90px">
                   <el-input v-model="item.deployPath" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="日志路径" label-width="70px">
-                  <el-input v-model="item.logPath" />
+                <el-form-item label="部署路径" label-width="90px">
+                  <el-input :value="getComputedDeployPath(item)" readonly />
+                  <span style="font-size: 12px; color: #999;">
+                    部署根路径 + 项目编码 + 项目路径（自动计算）
+                  </span>
                 </el-form-item>
               </el-col>
             </el-row>
 
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="项目路径" label-width="70px">
+                <el-form-item label="项目路径" label-width="90px">
                   <el-input v-model="item.projectPath" placeholder="例如：opster-backend、opster-frontend" clearable />
                   <span style="font-size: 12px; color: #999;">
                     相对于Git仓库的子目录路径，如果项目在仓库根目录则留空
@@ -182,25 +189,38 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <!-- 后端项目显示 Maven 命令 -->
-                <el-form-item v-if="item.repositoryType === 1" label="Maven命令" label-width="70px">
-                  <el-input v-model="item.mavenCmd" type="textarea" :rows="1" placeholder="mvn clean package -DskipTests" />
-                </el-form-item>
-                <!-- 前端项目显示构建命令 -->
-                <el-form-item v-else label="构建命令" label-width="70px">
-                  <el-input v-model="item.buildCmd" type="textarea" :rows="1" placeholder="npm run build" />
+                <el-form-item label="日志路径" label-width="90px">
+                  <el-input v-model="item.logPath" />
                 </el-form-item>
               </el-col>
             </el-row>
 
             <el-row :gutter="20">
               <el-col :span="12">
-                <el-form-item label="启动脚本" label-width="70px">
+                <!-- 后端项目显示 Maven 命令 -->
+                <el-form-item v-if="item.repositoryType === 1" label="Maven命令" label-width="90px">
+                  <el-input v-model="item.mavenCmd" type="textarea" :rows="1" placeholder="mvn clean package -DskipTests" />
+                </el-form-item>
+                <!-- 前端项目显示构建命令 -->
+                <el-form-item v-else label="构建命令" label-width="90px">
+                  <el-input v-model="item.buildCmd" type="textarea" :rows="1" placeholder="npm run build" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="占位" label-width="90px" style="visibility: hidden;">
+                  <el-input disabled />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="启动脚本" label-width="90px">
                   <el-input v-model="item.startScript" type="textarea" :rows="1" placeholder="./start.sh" />
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="监控地址" label-width="70px">
+                <el-form-item label="监控地址" label-width="90px">
                   <el-input v-model="item.monitorUrl" />
                 </el-form-item>
               </el-col>
@@ -462,7 +482,7 @@ const handleProjectChange = (projectId) => {
         env: '测试',
         port: isFrontend ? 80 : 8080,
         gitBranch: 'master',
-        deployPath: repo.projectPath || '/var/www/' + (project.projectName || 'app'),
+        deployPath: '/data/app', // 部署根路径（默认值）
         logPath: isFrontend ? '' : '/var/log/' + (project.projectName || 'app') + '.log',
         projectPath: repo.projectPath || '', // 新增字段，项目路径
         mavenCmd: isFrontend ? '' : 'mvn clean package -DskipTests',
@@ -495,6 +515,46 @@ const getProjectName = (id) => {
 const getServerName = (id) => {
   const s = servers.value.find(i => i.id === id)
   return s ? s.alias : id
+}
+
+// 计算完整部署路径（用于表格显示）
+const getFullDeployPath = (row) => {
+  const project = projects.value.find(p => p.id === row.projectId)
+  if (!project) return row.deployPath || ''
+
+  const deployPath = row.deployPath || ''
+  const projectCode = project.projectCode || ''
+  const projectPath = row.projectPath || ''
+
+  // 构建路径：{deployPath}/{projectCode}/{projectPath}
+  let fullPath = deployPath
+  if (projectCode) {
+    fullPath += '/' + projectCode
+    if (projectPath) {
+      fullPath += '/' + projectPath
+    }
+  }
+  return fullPath
+}
+
+// 计算完整部署路径（用于表单显示）
+const getComputedDeployPath = (item) => {
+  const project = projects.value.find(p => p.id === form.projectId)
+  if (!project) return item.deployPath || ''
+
+  const deployPath = item.deployPath || ''
+  const projectCode = project.projectCode || ''
+  const projectPath = item.projectPath || ''
+
+  // 构建路径：{deployPath}/{projectCode}/{projectPath}
+  let fullPath = deployPath
+  if (projectCode) {
+    fullPath += '/' + projectCode
+    if (projectPath) {
+      fullPath += '/' + projectPath
+    }
+  }
+  return fullPath
 }
 
 const fetchData = async () => {
