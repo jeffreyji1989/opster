@@ -129,8 +129,11 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 5. 本地打包
             logger.log(">>> 开始本地打包...");
+            logger.log(">>> 提示: 前端项目打包可能需要几分钟，请耐心等待...");
             String gitUrl = determineGitUrl(service, project);
             String projectPath = determineProjectPath(service, project);
+            String gitUsername = determineGitUsername(service, project);
+            String gitPassword = determineGitPassword(service, project);
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
@@ -141,8 +144,19 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
                     service.getBuildCmd() : service.getMavenCmd(),
                 projectPath,
-                wsSession
+                wsSession,
+                gitUsername,
+                gitPassword,
+                service.getNodeVersion()  // 传递 Node.js 版本
             );
+
+            // 验证打包产物是否生成成功
+            if (artifact == null || !java.nio.file.Files.exists(artifact)) {
+                throw new Exception("打包失败: 未生成打包产物文件");
+            }
+
+            long artifactSize = java.nio.file.Files.size(artifact);
+            logger.log(">>> 本地打包完成! 产物: " + artifact.getFileName().toString() + " (" + (artifactSize / 1024 / 1024) + " MB)");
 
             // 6. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
@@ -150,13 +164,22 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             logger.log(">>> 已连接");
 
-            // 7. 创建远程目录结构
-            String remoteDir = buildRemoteDir(service, projectCode);
+            // 7. 创建远程目录结构（不包含p_log，日志在本地记录）
+            String remoteDir = buildRemoteDir(project, service);
             logger.log(">>> 创建远程目录: " + remoteDir);
-            executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs,p_log}");
+            executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs}");
 
-            // 8. 上传打包产物
-            logger.log(">>> 上传打包产物...");
+            // 8. 先备份当前版本（在上传新文件之前备份）
+            logger.log(">>> 备份当前版本...");
+            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
+            if (backupInfo.filePath != null) {
+                deploymentRecord.setBackupFilePath(backupInfo.filePath);
+                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+            }
+
+            // 9. 上传打包产物
+            logger.log(">>> 开始上传打包产物 (" + (artifactSize / 1024 / 1024) + " MB)...");
+            logger.log(">>> 提示: 大文件上传可能需要几分钟，请勿关闭页面...");
             if (service.getRepositoryType() != null && service.getRepositoryType() == 0) {
                 // 前端项目：上传zip并解压
                 fileTransferService.uploadAndExtractZip(artifact, sshSession, remoteDir, wsSession);
@@ -165,16 +188,9 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 String remoteJarPath = remoteDir + "/" + artifact.getFileName().toString();
                 fileTransferService.uploadFile(artifact, sshSession, remoteJarPath, wsSession);
             }
+            logger.log(">>> 打包产物上传成功");
 
-            // 9. 备份当前版本并记录版本信息
-            logger.log(">>> 备份当前版本...");
-            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
-            if (backupInfo.filePath != null) {
-                deploymentRecord.setBackupFilePath(backupInfo.filePath);
-                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
-            }
-
-            // 10. 部署新版本
+            // 10. 部署新版本（用新文件覆盖app.jar）
             logger.log(">>> 部署新版本...");
             deployNewVersion(sshSession, remoteDir, artifact, logger);
 
@@ -308,7 +324,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+            String remoteDir = buildRemoteDir(project, service);
 
             // 从备份目录恢复
             sendMessage(wsSession, ">>> 从备份目录恢复...");
@@ -360,7 +376,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+            String remoteDir = buildRemoteDir(project, service);
 
             // 停止服务
             String stopCmd = String.format(
@@ -426,7 +442,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+            String remoteDir = buildRemoteDir(project, service);
 
             // 6. 回退前先备份当前版本（防止回退失败）
             logger.log(">>> 备份当前版本（防止回退失败）...");
@@ -444,9 +460,18 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 8. 恢复目标版本的jar文件
             logger.log(">>> 恢复版本: " + targetRecord.getCreateTime());
-            String restoreCmd = String.format("cp -f '%s' %s/app.jar",
-                targetRecord.getBackupFilePath(), remoteDir);
+
+            // 从备份文件路径中提取原始jar文件名
+            // 备份文件路径格式: /path/to/bak/original-name.jar_backup_timestamp.jar
+            String backupFilePath = targetRecord.getBackupFilePath();
+            String originalJarName = extractOriginalJarNameFromBackup(backupFilePath);
+
+            String restoreCmd = String.format(
+                "cp -f '%s' %s/%s",
+                backupFilePath, remoteDir, originalJarName
+            );
             executeRemoteCommand(logger, sshSession, restoreCmd);
+            logger.log(">>> 已恢复文件: " + originalJarName);
 
             // 9. 创建回退记录（使用本地日志路径）
             rollbackRecord = new DeploymentRecord();
@@ -523,20 +548,24 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
      * 构建远程服务器部署目录路径
      * 如果配置了项目路径，则在基础路径后追加项目路径
      *
+     * @param project 项目配置
      * @param service 服务配置
-     * @param projectCode 项目编码
      * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
      * @throws IllegalArgumentException 如果参数为空或无效
      */
-    private String buildRemoteDir(AppService service, String projectCode) {
+    private String buildRemoteDir(Project project, AppService service) {
         // 参数验证
+        if (project == null) {
+            throw new IllegalArgumentException("项目配置不能为空");
+        }
         if (service == null) {
             throw new IllegalArgumentException("服务配置不能为空");
         }
+        String projectCode = project.getProjectCode();
         if (StrUtil.isBlank(projectCode)) {
             throw new IllegalArgumentException("项目编码不能为空");
         }
-        String deployPath = service.getDeployPath();
+        String deployPath = project.getDeployPath();
         if (StrUtil.isBlank(deployPath)) {
             throw new IllegalArgumentException("部署路径不能为空");
         }
@@ -584,6 +613,22 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     }
 
     /**
+     * 确定Git认证用户名
+     */
+    private String determineGitUsername(AppService service, Project project) {
+        // 从项目配置获取用户名
+        return project.getGitUsername();
+    }
+
+    /**
+     * 确定Git认证密码
+     */
+    private String determineGitPassword(AppService service, Project project) {
+        // 从项目配置获取密码
+        return project.getGitPassword();
+    }
+
+    /**
      * 确定项目路径
      * 优先级：Service.projectPath > Project.repositories[].projectPath > null
      */
@@ -617,16 +662,22 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String backupCmd = String.format(
             "bash -c '\n" +
             "mkdir -p %s/bak\n" +
-            "if ls %s/*.jar 1> /dev/null 2>&1; then\n" +
-            "    timestamp=$(date +\"%%Y%%m%%d%%H%%M%%S\")\n" +
-            "    backup_file=\"%s/bak/backup_${timestamp}.jar\"\n" +
-            "    cp -f %s/*.jar \"$backup_file\" 2>/dev/null && echo \"BACKUP_SUCCESS:$backup_file\"\n" +
-            "    ls -l \"$backup_file\" 2>/dev/null | awk \"{print \\\"BACKUP_SIZE:\\\" \\$5}\"\n" +
-            "else\n" +
+            "cd %s\n" +
+            "timestamp=$(date +\"%%Y%%m%%d%%H%%M%%S\")\n" +
+            "backed_up=\"\"\n" +
+            "for jar_file in *.jar; do\n" +  // 遍历所有jar文件
+            "    if [ -f \"$jar_file\" ]; then\n" +
+            "        backup_file=\"%s/bak/${jar_file}_backup_${timestamp}.jar\"\n" +  // 修复：直接使用完整文件名，不去除.jar
+            "        cp -f \"$jar_file\" \"$backup_file\" && echo \"BACKUP_SUCCESS:$backup_file\"\n" +
+            "        ls -l \"$backup_file\" 2>/dev/null | awk \"{print \\\"BACKUP_SIZE:\\\" \\$5}\"\n" +
+            "        backed_up=\"yes\"\n" +
+            "    fi\n" +
+            "done\n" +
+            "if [ -z \"$backed_up\" ]; then\n" +
             "    echo \"NO_JAR_FOUND\"\n" +
             "fi\n" +
             "'",
-            remoteDir, remoteDir, remoteDir, remoteDir
+            remoteDir, remoteDir, remoteDir
         );
 
         ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
@@ -677,16 +728,22 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String backupCmd = String.format(
             "bash -c '\n" +
             "mkdir -p %s/bak\n" +
-            "if ls %s/*.jar 1> /dev/null 2>&1; then\n" +
-            "    timestamp=$(date +\"%%Y%%m%%d%%H%%M%%S\")\n" +
-            "    backup_file=\"%s/bak/backup_${timestamp}.jar\"\n" +
-            "    cp -f %s/*.jar \"$backup_file\" 2>/dev/null && echo \"BACKUP_SUCCESS:$backup_file\"\n" +
-            "    ls -l \"$backup_file\" 2>/dev/null | awk \"{print \\\"BACKUP_SIZE:\\\" \\$5}\"\n" +
-            "else\n" +
+            "cd %s\n" +
+            "timestamp=$(date +\"%%Y%%m%%d%%H%%M%%S\")\n" +
+            "backed_up=\"\"\n" +
+            "for jar_file in *.jar; do\n" +  // 遍历所有jar文件
+            "    if [ -f \"$jar_file\" ]; then\n" +
+            "        backup_file=\"%s/bak/${jar_file}_backup_${timestamp}.jar\"\n" +  // 修复：直接使用完整文件名
+            "        cp -f \"$jar_file\" \"$backup_file\" && echo \"BACKUP_SUCCESS:$backup_file\"\n" +
+            "        ls -l \"$backup_file\" 2>/dev/null | awk \"{print \\\"BACKUP_SIZE:\\\" \\$5}\"\n" +
+            "        backed_up=\"yes\"\n" +
+            "    fi\n" +
+            "done\n" +
+            "if [ -z \"$backed_up\" ]; then\n" +
             "    echo \"NO_JAR_FOUND\"\n" +
             "fi\n" +
             "'",
-            remoteDir, remoteDir, remoteDir, remoteDir
+            remoteDir, remoteDir, remoteDir
         );
 
         ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
@@ -736,17 +793,63 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String fileName = artifact.getFileName().toString();
 
         if (fileName.endsWith(".jar")) {
-            // 后端项目：使用mv命令重命名jar文件为app.jar（避免留下两个文件）
+            // 后端项目：保持原始jar文件名（去除时间戳前缀）
+            // 文件名格式: timestamp_original-name.jar
+            String originalJarName = extractOriginalJarName(fileName);
+
+            // 移动jar文件到最终位置，使用原始文件名
             String deployCmd = String.format(
-                "mv -f %s/%s %s/app.jar",
-                remoteDir, fileName, remoteDir
+                "mv -f %s/%s %s/%s",
+                remoteDir, fileName, remoteDir, originalJarName
             );
             executeRemoteCommand(wsSession, sshSession, deployCmd);
-            sendMessage(wsSession, ">>> 部署完成: app.jar");
+
+            // 清理旧的 app.jar 文件（如果存在）
+            String cleanCmd = String.format(
+                "rm -f %s/app.jar && echo '已清理旧的app.jar文件' || echo '没有找到旧的app.jar文件'",
+                remoteDir
+            );
+            executeRemoteCommand(wsSession, sshSession, cleanCmd);
+
+            sendMessage(wsSession, ">>> 部署完成: " + originalJarName);
         } else if (fileName.endsWith(".zip")) {
             // 前端项目：已在uploadAndExtractZip中处理
             sendMessage(wsSession, ">>> 前端文件已部署");
         }
+    }
+
+    /**
+     * 从归档文件名中提取原始jar文件名
+     * 例如: 20260131165555_eip-backend-1.0.0.jar -> eip-backend-1.0.0.jar
+     */
+    private String extractOriginalJarName(String archiveName) {
+        if (archiveName != null && archiveName.contains("_")) {
+            // 移除时间戳前缀
+            return archiveName.substring(archiveName.indexOf("_") + 1);
+        }
+        return archiveName;
+    }
+
+    /**
+     * 从备份文件路径中提取原始jar文件名
+     * 例如: /path/to/eip-backend-1.0.0.jar_backup_20260131203137.jar -> eip-backend-1.0.0.jar
+     */
+    private String extractOriginalJarNameFromBackup(String backupFilePath) {
+        if (backupFilePath == null || backupFilePath.isEmpty()) {
+            return "app.jar"; // 默认值
+        }
+
+        // 获取文件名（不含路径）
+        String fileName = backupFilePath.substring(backupFilePath.lastIndexOf("/") + 1);
+
+        // 去除 _backup_timestamp.jar 后缀
+        // 备份文件名格式: original-name.jar_backup_timestamp.jar
+        if (fileName.contains("_backup_")) {
+            int backupIndex = fileName.indexOf("_backup_");
+            fileName = fileName.substring(0, backupIndex) + ".jar";
+        }
+
+        return fileName;
     }
 
     /**
@@ -757,13 +860,24 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String fileName = artifact.getFileName().toString();
 
         if (fileName.endsWith(".jar")) {
-            // 后端项目：使用mv命令重命名jar文件为app.jar（避免留下两个文件）
+            // 后端项目：保持原始jar文件名（去除时间戳前缀）
+            String originalJarName = extractOriginalJarName(fileName);
+
+            // 移动jar文件到最终位置，使用原始文件名
             String deployCmd = String.format(
-                "mv -f %s/%s %s/app.jar",
-                remoteDir, fileName, remoteDir
+                "mv -f %s/%s %s/%s",
+                remoteDir, fileName, remoteDir, originalJarName
             );
             executeRemoteCommand(logger, sshSession, deployCmd);
-            logger.log(">>> 部署完成: app.jar");
+
+            // 清理旧的 app.jar 文件（如果存在）
+            String cleanCmd = String.format(
+                "rm -f %s/app.jar && echo '已清理旧的app.jar文件' || echo '没有找到旧的app.jar文件'",
+                remoteDir
+            );
+            executeRemoteCommand(logger, sshSession, cleanCmd);
+
+            logger.log(">>> 部署完成: " + originalJarName);
         } else if (fileName.endsWith(".zip")) {
             // 前端项目：已在uploadAndExtractZip中处理
             logger.log(">>> 前端文件已部署");
@@ -778,7 +892,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
 
-        String remoteDir = buildRemoteDir(service, project.getProjectCode());
+        String remoteDir = buildRemoteDir(project, service);
         String envVars = String.format(
             "export JAVA_HOME=%s && export M2_HOME=%s",
             javaHome, mavenHome
@@ -800,7 +914,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
 
-        String remoteDir = buildRemoteDir(service, project.getProjectCode());
+        String remoteDir = buildRemoteDir(project, service);
         String envVars = String.format(
             "export JAVA_HOME=%s && export M2_HOME=%s",
             javaHome, mavenHome
@@ -821,16 +935,21 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                                   WebSocketSession wsSession) throws Exception {
         String restoreCmd = String.format(
             "bash -c '\n" +
-            "backup_file=$(ls -1t %s/bak/*.jar 2>/dev/null | head -1)\n" +
+            "cd %s\n" +
+            "backup_file=$(ls -1t bak/*.jar 2>/dev/null | head -1)\n" +  // 找到最新的备份文件
             "if [ -n \"$backup_file\" ]; then\n" +
-            "    cp -f \"$backup_file\" %s/app.jar\n" +
+            "    # 从备份文件名中提取原始文件名\n" +
+            "    # 备份文件名格式: original-name.jar_backup_timestamp.jar\n" +
+            "    original_name=$(basename \"$backup_file\" | sed 's/_backup_[0-9]*\\.jar$/.jar/')\n" +
+            "    cp -f \"$backup_file\" \"$original_name\"\n" +  // 恢复为原始文件名
             "    echo \"Restored from: $backup_file\"\n" +
+            "    echo \"Original file name: $original_name\"\n" +
             "else\n" +
             "    echo \"No backup found\"\n" +
             "    exit 1\n" +
             "fi\n" +
             "'",
-            remoteDir, remoteDir
+            remoteDir
         );
         executeRemoteCommand(wsSession, sshSession, restoreCmd);
     }
@@ -1034,6 +1153,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 开始本地打包...");
             String gitUrl = determineGitUrl(service, project);
             String projectPath = determineProjectPath(service, project);
+            String gitUsername = determineGitUsername(service, project);
+            String gitPassword = determineGitPassword(service, project);
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
@@ -1044,7 +1165,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
                     service.getBuildCmd() : service.getMavenCmd(),
                 projectPath,
-                null // 无 WebSocket
+                null, // 无 WebSocket
+                gitUsername,
+                gitPassword,
+                service.getNodeVersion()  // 传递 Node.js 版本
             );
 
             // 5. 连接远程服务器
@@ -1053,12 +1177,20 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
             logger.log(">>> 已连接");
 
-            // 6. 创建远程目录结构
-            String remoteDir = buildRemoteDir(service, projectCode);
+            // 6. 创建远程目录结构（不包含p_log，日志在本地记录）
+            String remoteDir = buildRemoteDir(project, service);
             logger.log(">>> 创建远程目录: " + remoteDir);
-            executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs,p_log}");
+            executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs}");
 
-            // 7. 上传打包产物
+            // 7. 先备份当前版本（在上传新文件之前备份）
+            logger.log(">>> 备份当前版本...");
+            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
+            if (backupInfo.filePath != null) {
+                deploymentRecord.setBackupFilePath(backupInfo.filePath);
+                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+            }
+
+            // 8. 上传打包产物
             logger.log(">>> 上传打包产物...");
             if (service.getRepositoryType() != null && service.getRepositoryType() == 0) {
                 fileTransferService.uploadAndExtractZip(artifact, sshSession, remoteDir, null);
@@ -1067,15 +1199,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 fileTransferService.uploadFile(artifact, sshSession, remoteJarPath, null);
             }
 
-            // 8. 备份当前版本
-            logger.log(">>> 备份当前版本...");
-            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
-            if (backupInfo.filePath != null) {
-                deploymentRecord.setBackupFilePath(backupInfo.filePath);
-                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
-            }
-
-            // 9. 部署新版本
+            // 9. 部署新版本（用新文件覆盖app.jar）
             logger.log(">>> 部署新版本...");
             deployNewVersion(sshSession, remoteDir, artifact, logger);
 
@@ -1170,7 +1294,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // SshUtils.connect 内部会自动解密密码
             Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
-            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+            String remoteDir = buildRemoteDir(project, service);
 
             // 5. 回退前先备份当前版本
             logger.log(">>> 备份当前版本（防止回退失败）...");

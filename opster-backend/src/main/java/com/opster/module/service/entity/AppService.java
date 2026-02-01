@@ -45,12 +45,6 @@ public class AppService extends BaseEntity {
     private String gitBranch;
 
     /**
-     * 部署路径
-     */
-    @Column(name = "deploy_path")
-    private String deployPath;
-
-    /**
      * 环境: 生产/测试
      */
     @Column(name = "env")
@@ -118,4 +112,19 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "project_path")
     private String projectPath;
+
+    /**
+     * 启动脚本是否已上传到服务器
+     * 0-未上传 1-已上传
+     */
+    @Column(name = "script_uploaded", columnDefinition = "INTEGER DEFAULT 0")
+    private Integer scriptUploaded;
+
+    /**
+     * 运行时版本号
+     * 前端项目：Node.js 版本，格式：v18.17.0、v20.10.0（手动填写）
+     * 后端项目：JDK 版本，可选值：jdk8、jdk17（下拉选择）
+     */
+    @Column(name = "node_version", length = 20)
+    private String nodeVersion;
 }

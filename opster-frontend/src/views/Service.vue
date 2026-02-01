@@ -66,6 +66,14 @@
       <el-table-column prop="env" label="环境" width="80" />
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="gitBranch" label="分支" width="100" />
+      <el-table-column label="运行时版本" width="120">
+        <template #default="scope">
+          <el-tag v-if="scope.row.nodeVersion" :type="scope.row.repositoryType === 1 ? 'primary' : 'success'" size="small">
+            {{ scope.row.nodeVersion }}
+          </el-tag>
+          <span v-else style="color: #999; font-size: 12px;">默认</span>
+        </template>
+      </el-table-column>
       <el-table-column label="部署路径" show-overflow-tooltip>
         <template #default="scope">
           {{ getFullDeployPath(scope.row) }}
@@ -83,13 +91,16 @@
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleEnabled(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="400">
+      <el-table-column label="操作" min-width="550" fixed="right">
         <template #default="scope">
           <el-button-group>
             <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
-            <el-button size="small" type="warning" @click="handleAction(scope.row, 'restart')">重启</el-button>
-            <el-button size="small" type="success" @click="handleAction(scope.row, 'start')">启动</el-button>
-            <el-button size="small" type="info" @click="handleLog(scope.row)">日志</el-button>
+            <!-- 后端和管理后台项目显示：启动/重启、日志、终端 -->
+            <template v-if="scope.row.repositoryType === 1 || scope.row.repositoryType === 2">
+              <el-button size="small" type="warning" @click="handleAction(scope.row, 'restart')">启动/重启</el-button>
+              <el-button size="small" type="info" @click="handleLog(scope.row)">日志</el-button>
+              <el-button size="small" type="default" @click="handleTerminal(scope.row)">终端</el-button>
+            </template>
             <el-dropdown @command="(cmd) => handleRollbackCommand(cmd, scope.row)">
               <el-button size="small" type="danger">
                 版本回退<el-icon class="el-icon--right"><arrow-down /></el-icon>
@@ -101,7 +112,6 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button size="small" type="default" @click="handleTerminal(scope.row)">终端</el-button>
           </el-button-group>
           <el-divider direction="vertical" />
           <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
@@ -170,16 +180,11 @@
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="部署根路径" label-width="90px">
-                  <el-input v-model="item.deployPath" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
+              <el-col :span="24">
                 <el-form-item label="部署路径" label-width="90px">
                   <el-input :value="getComputedDeployPath(item)" readonly />
                   <span style="font-size: 12px; color: #999;">
-                    部署根路径 + 项目编码 + 项目路径（自动计算）
+                    项目的部署根目录 + 项目编码 + 项目路径（自动计算）
                   </span>
                 </el-form-item>
               </el-col>
@@ -194,9 +199,13 @@
                   </span>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
+              <!-- 仅后端项目显示日志路径 -->
+              <el-col :span="12" v-if="item.repositoryType === 1">
                 <el-form-item label="日志路径" label-width="90px">
-                  <el-input v-model="item.logPath" />
+                  <!-- 新增模式：显示计算后的路径（只读） -->
+                  <el-input v-if="!form.id" :value="getComputedLogPath(item)" readonly />
+                  <!-- 编辑模式：显示服务端返回的值（可编辑） -->
+                  <el-input v-else v-model="item.logPath" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -213,16 +222,55 @@
                 </el-form-item>
               </el-col>
               <el-col :span="12">
-                <el-form-item label="占位" label-width="90px" style="visibility: hidden;">
-                  <el-input disabled />
+                <!-- 前端项目显示 Node.js 版本配置 -->
+                <el-form-item v-if="item.repositoryType !== 1" label="Node版本" label-width="90px">
+                  <el-select
+                    v-model="item.nodeVersion"
+                    placeholder="选择或输入版本"
+                    filterable
+                    allow-create
+                    default-first-option
+                    style="width: 100%">
+                    <el-option label="使用系统默认" value="" />
+                    <el-option v-for="version in installedNodeVersions"
+                               :key="version"
+                               :label="version"
+                               :value="version" />
+                  </el-select>
+                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                    格式：v18.17.0，留空使用系统默认
+                  </div>
+                </el-form-item>
+                <!-- 后端项目显示 JDK 版本选择 -->
+                <el-form-item v-else label="JDK版本" label-width="90px">
+                  <el-select
+                    v-model="item.nodeVersion"
+                    placeholder="选择JDK版本"
+                    style="width: 100%">
+                    <el-option label="使用系统默认" value="" />
+                    <el-option label="JDK 8" value="jdk8" />
+                    <el-option label="JDK 17" value="jdk17" />
+                  </el-select>
+                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                    选择构建使用的 JDK 版本
+                  </div>
                 </el-form-item>
               </el-col>
             </el-row>
 
-            <el-row :gutter="20">
+            <!-- 仅后端项目显示启动脚本和监控地址 -->
+            <el-row :gutter="20" v-if="item.repositoryType === 1">
               <el-col :span="12">
                 <el-form-item label="启动脚本" label-width="90px">
                   <el-input v-model="item.startScript" type="textarea" :rows="1" placeholder="./start.sh" />
+                  <div style="margin-top: 5px;">
+                    <el-button
+                      type="primary"
+                      size="small"
+                      @click="handleGenerateScript(item)">
+                      生成脚本
+                    </el-button>
+                  </div>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
@@ -395,6 +443,33 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 启动脚本预览对话框 -->
+    <el-dialog v-model="scriptDialogVisible" title="启动脚本预览" width="800px">
+      <div class="script-header">
+        <el-space>
+          <el-tag type="info">标准 Spring Boot 启动脚本</el-tag>
+          <el-tag type="success">无需传递参数</el-tag>
+          <el-tag type="warning">自动检测jar文件</el-tag>
+          <el-tag type="primary">日志输出到logs/目录</el-tag>
+        </el-space>
+      </div>
+
+      <div class="script-content">
+        <pre class="script-preview">{{ generatedScript }}</pre>
+      </div>
+
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="copyScript">复制到剪贴板</el-button>
+          <el-button @click="downloadScript">下载脚本文件</el-button>
+          <el-button @click="handleUploadToServer" type="warning" :loading="uploadingScript" :disabled="uploadingScript">
+            上传到服务器
+          </el-button>
+          <el-button @click="scriptDialogVisible = false">关闭</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -414,6 +489,7 @@ const tableData = ref([])
 const projects = ref([])
 const servers = ref([])
 const businessLines = ref([])
+const installedNodeVersions = ref([])  // 已安装的 Node.js 版本列表
 
 const queryForm = reactive({
   projectId: '',
@@ -442,6 +518,12 @@ const versionEditForm = reactive({
   description: '',
   tag: ''
 })
+
+// 脚本生成相关状态
+const scriptDialogVisible = ref(false)
+const generatedScript = ref('')
+const currentEditingItem = ref(null)
+const uploadingScript = ref(false) // 上传中的状态
 
 // 仓库类型映射
 const repoTypeMap = {
@@ -499,11 +581,12 @@ const handleProjectChange = (projectId) => {
         env: '测试',
         port: isFrontend ? 80 : 8080,
         gitBranch: 'master',
-        deployPath: '/data/app', // 部署根路径（默认值）
-        logPath: isFrontend ? '' : '/var/log/' + (project.projectName || 'app') + '.log',
+        // deployPath 已移到项目配置中
+        logPath: '', // 新增模式下留空，自动计算显示
         projectPath: repo.projectPath || '', // 新增字段，项目路径
         mavenCmd: isFrontend ? '' : 'mvn clean package -DskipTests',
         buildCmd: isFrontend ? 'npm install && npm run build' : '', // 新增字段
+        nodeVersion: isFrontend ? '' : 'jdk17', // 前端手动填写，后端默认 jdk17
         startScript: isFrontend ? '' : './start.sh',
         monitorUrl: '',
         status: 1
@@ -537,9 +620,10 @@ const getServerName = (id) => {
 // 计算完整部署路径（用于表格显示）
 const getFullDeployPath = (row) => {
   const project = projects.value.find(p => p.id === row.projectId)
-  if (!project) return row.deployPath || ''
+  if (!project) return ''
 
-  const deployPath = row.deployPath || ''
+  // deployPath 现在从项目配置获取
+  const deployPath = project.deployPath || ''
   const projectCode = project.projectCode || ''
   const projectPath = row.projectPath || ''
 
@@ -557,9 +641,10 @@ const getFullDeployPath = (row) => {
 // 计算完整部署路径（用于表单显示）
 const getComputedDeployPath = (item) => {
   const project = projects.value.find(p => p.id === form.projectId)
-  if (!project) return item.deployPath || ''
+  if (!project) return ''
 
-  const deployPath = item.deployPath || ''
+  // deployPath 现在从项目配置获取
+  const deployPath = project.deployPath || ''
   const projectCode = project.projectCode || ''
   const projectPath = item.projectPath || ''
 
@@ -572,6 +657,26 @@ const getComputedDeployPath = (item) => {
     }
   }
   return fullPath
+}
+
+// 计算日志路径（新增模式下自动计算）
+const getComputedLogPath = (item) => {
+  const deployPath = getComputedDeployPath(item)
+  if (!deployPath) return ''
+  return deployPath + '/logs/app.log'
+}
+
+// 获取已安装的 Node.js 版本列表
+const fetchInstalledNodeVersions = async () => {
+  try {
+    const res = await request.get('/node-version/installed')
+    if (res.success) {
+      installedNodeVersions.value = res.data || []
+    }
+  } catch (e) {
+    console.error('获取 Node.js 版本列表失败:', e)
+    // 不影响主流程，静默失败
+  }
 }
 
 const fetchData = async () => {
@@ -632,14 +737,16 @@ const handleEdit = (row) => {
     env: row.env,
     port: row.port,
     gitBranch: row.gitBranch,
-    deployPath: row.deployPath,
+    // deployPath 已移到项目配置中
     logPath: row.logPath,
     projectPath: row.projectPath || '', // 新增字段，项目路径
     mavenCmd: row.mavenCmd,
     buildCmd: row.buildCmd, // 新增字段
+    nodeVersion: row.nodeVersion || '', // Node.js 版本
     startScript: row.startScript,
     monitorUrl: row.monitorUrl,
-    status: row.status
+    status: row.status,
+    scriptUploaded: row.scriptUploaded || 0 // 脚本上传状态
   }]
   dialogVisible.value = true
 }
@@ -665,8 +772,15 @@ const handleSubmit = async () => {
       await request.put('/service', data)
       ElMessage.success('更新成功')
     } else {
-      // 批量新增
-      const services = form.items.map(item => ({ ...item, projectId: form.projectId }))
+      // 批量新增 - 自动计算日志路径
+      const services = form.items.map(item => {
+        const serviceItem = { ...item, projectId: form.projectId }
+        // 如果日志路径为空，自动计算
+        if (!serviceItem.logPath) {
+          serviceItem.logPath = getComputedLogPath(item)
+        }
+        return serviceItem
+      })
       await request.post('/service/batch', services)
       ElMessage.success('批量创建成功')
     }
@@ -704,7 +818,7 @@ const execSocket = ref(null)
 const logSocket = ref(null)
 
 const handleAction = (row, action) => {
-  const actionNames = { 'deploy': '发版', 'restart': '重启', 'start': '启动' }
+  const actionNames = { 'deploy': '发版', 'restart': '启动/重启' }
   const actionName = actionNames[action] || action
 
   // 发版使用异步 API（不打开 WebSocket 窗口）
@@ -724,7 +838,7 @@ const handleAction = (row, action) => {
     return
   }
 
-  // 其他操作（重启、启动）继续使用 WebSocket
+  // 重启操作使用 WebSocket
   ElMessageBox.confirm(`确认执行【${actionName}】?`, '提示', { type: 'warning' }).then(() => {
     resultContent.value = `正在连接 WebSocket 执行 ${actionName}...\n`
     resultStatus.value = 'success'
@@ -1141,7 +1255,220 @@ onUnmounted(() => {
   attachAddon.value = null
 })
 
-onMounted(fetchData)
+// ========== 启动脚本生成相关方法 ==========
+
+// 生成启动脚本
+const handleGenerateScript = (item) => {
+  currentEditingItem.value = item
+  generatedScript.value = generateStartScript(item)
+  scriptDialogVisible.value = true
+}
+
+// 生成脚本内容
+const generateStartScript = (item) => {
+  const port = item.port || 8080
+
+  return `#!/bin/bash
+# Spring Boot 应用启动脚本
+# 自动生成于 Opster 平台
+# 服务端口: ${port}
+# 生成时间: ${new Date().toLocaleString('zh-CN')}
+# 使用方式: sh start.sh (无需传递参数)
+
+# 配置项
+JAR_NAME="*.jar"
+JAVA_OPTS="\${JAVA_OPTS:-}"
+PORT="${port}"
+LOG_DIR="logs"
+PID_FILE="app.pid"
+
+# 颜色定义
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+NC='\\033[0m' # No Color
+
+# 日志函数
+log_info() {
+    echo -e "\${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] INFO: \$1\${NC}"
+}
+
+log_error() {
+    echo -e "\${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: \$1\${NC}"
+}
+
+log_warn() {
+    echo -e "\${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARN: \$1\${NC}"
+}
+
+# 检查Java是否可用
+check_java() {
+    if ! command -v java &> /dev/null; then
+        log_error "Java 未安装或不在 PATH 中"
+        exit 1
+    fi
+}
+
+# 获取应用PID
+get_pid() {
+    if [ -f "\$PID_FILE" ]; then
+        cat "\$PID_FILE"
+    fi
+}
+
+# 检查应用是否已运行
+check_running() {
+    local pid=\$(get_pid)
+    if [ -n "\$pid" ] && ps -p "\$pid" > /dev/null 2>&1; then
+        log_error "应用已在运行 (PID: \$pid)"
+        exit 1
+    fi
+}
+
+# 启动应用
+start() {
+    log_info "=========================================="
+    log_info "Spring Boot 应用启动"
+    log_info "=========================================="
+
+    # 检查Java
+    check_java
+
+    # 检查是否已运行
+    check_running
+
+    # 创建日志目录
+    mkdir -p "\$LOG_DIR"
+
+    # 查找jar文件
+    jar_file=\$(ls -t \$JAR_NAME 2>/dev/null | head -1)
+    if [ -z "\$jar_file" ]; then
+        log_error "未找到jar文件: \$JAR_NAME"
+        exit 1
+    fi
+
+    log_info "使用jar文件: \$jar_file"
+    log_info "日志文件: \$LOG_DIR/app.log"
+
+    # 启动应用
+    nohup java \$JAVA_OPTS -jar "\$jar_file" \\
+        > "\$LOG_DIR/app.log" 2>&1 &
+    echo \$! > "\$PID_FILE"
+
+    # 等待启动
+    sleep 3
+
+    # 验证启动成功
+    if ps -p \$(get_pid) > /dev/null 2>&1; then
+        log_info "应用启动成功 (PID: \$(get_pid))"
+        log_info "应用日志: \$LOG_DIR/app.log"
+        log_info "=========================================="
+        log_info "启动完成"
+        log_info "=========================================="
+    else
+        log_error "应用启动失败，请检查日志: \$LOG_DIR/app.log"
+        exit 1
+    fi
+}
+
+# 执行启动
+start
+`
+}
+
+// 复制脚本到剪贴板
+const copyScript = () => {
+  navigator.clipboard.writeText(generatedScript.value).then(() => {
+    ElMessage.success('脚本已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 下载脚本文件
+const downloadScript = () => {
+  const blob = new Blob([generatedScript.value], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'start.sh'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  ElMessage.success('脚本文件已下载')
+}
+
+// 上传到服务器
+const handleUploadToServer = async () => {
+  if (!currentEditingItem.value) {
+    ElMessage.error('未找到服务信息')
+    return
+  }
+
+  // 检查是否有服务ID（新增模式下的服务还没有保存）
+  if (!currentEditingItem.value.id) {
+    ElMessageBox.alert('请先保存服务后再上传脚本', '提示', { type: 'warning' })
+    return
+  }
+
+  try {
+    // 检查是否已上传过
+    const alreadyUploaded = currentEditingItem.value.scriptUploaded === 1
+
+    if (alreadyUploaded) {
+      // 已上传过，询问是否覆盖
+      await ElMessageBox.confirm(
+        '脚本已上传过，是否覆盖？（旧脚本会自动备份）',
+        '脚本已存在',
+        {
+          confirmButtonText: '覆盖（自动备份旧脚本）',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      ).catch(() => {
+        throw new Error('cancel')
+      })
+    } else {
+      // 未上传过，直接询问是否上传
+      await ElMessageBox.confirm('确认将脚本上传到服务器？', '上传确认', {
+        confirmButtonText: '确认上传',
+        cancelButtonText: '取消',
+        type: 'info'
+      }).catch(() => {
+        throw new Error('cancel')
+      })
+    }
+
+    // 开始上传，显示 loading
+    uploadingScript.value = true
+
+    // 执行上传
+    const uploadRes = await request.post(`/service/${currentEditingItem.value.id}/upload-start-script`, {
+      scriptContent: generatedScript.value
+    })
+
+    if (uploadRes.success) {
+      ElMessage.success('脚本上传成功')
+      // 更新本地状态
+      currentEditingItem.value.scriptUploaded = 1
+    } else {
+      ElMessage.error('上传失败: ' + (uploadRes.message || '未知错误'))
+    }
+  } catch (e) {
+    if (e.message !== 'cancel') {
+      ElMessage.error('操作失败: ' + (e.message || '未知错误'))
+    }
+  } finally {
+    // 结束 loading
+    uploadingScript.value = false
+  }
+}
+
+onMounted(() => {
+  fetchData()
+  fetchInstalledNodeVersions()
+})
 </script>
 
 <style scoped>
@@ -1277,5 +1604,29 @@ onMounted(fetchData)
   gap: 10px;
   padding-top: 10px;
   border-top: 1px solid #ebeef5;
+}
+
+/* 脚本预览对话框样式 */
+.script-header {
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.script-content {
+  margin: 15px 0;
+}
+
+.script-preview {
+  background: #1e1e1e;
+  color: #f8f8f2;
+  padding: 20px;
+  border-radius: 4px;
+  max-height: 500px;
+  overflow: auto;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
 }
 </style>

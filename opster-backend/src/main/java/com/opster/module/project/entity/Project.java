@@ -49,10 +49,22 @@ public class Project extends BaseEntity {
     private List<RepositoryDTO> repositories;
 
     /**
-     * 项目监控地址
+     * Git 认证用户名（用于 HTTP/HTTPS 认证）
      */
-    @Column(name = "monitor_url")
-    private String monitorUrl;
+    @Column(name = "git_username")
+    private String gitUsername;
+
+    /**
+     * Git 认证密码（用于 HTTP/HTTPS 认证）
+     */
+    @Column(name = "git_password")
+    private String gitPassword;
+
+    /**
+     * 部署根目录
+     */
+    @Column(name = "deploy_path")
+    private String deployPath;
 
     /**
      * 业务线名称

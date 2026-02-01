@@ -16,7 +16,7 @@ public interface AppServiceService {
     AppService save(AppService service);
     void deleteById(Integer id);
     long count();
-    
+
     // Actions
     String compileAndRestart(Integer id);
     String restart(Integer id);
@@ -25,7 +25,10 @@ public interface AppServiceService {
 
     // Stats
     long countByStatus(Integer status);
-    
+
     // Monitor
     List<Map<String, Object>> searchMonitor(Integer projectId, String ip);
+
+    // 启动脚本管理
+    void uploadStartScript(Integer id, String scriptContent) throws Exception;
 }

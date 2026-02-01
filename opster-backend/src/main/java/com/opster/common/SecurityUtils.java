@@ -66,6 +66,13 @@ public class SecurityUtils {
         if (data == null || data.isEmpty()) {
             return false;
         }
+
+        // 检查是否是32位十六进制字符串（可能是MD5或其他哈希）
+        // 这类格式无法用AES解密，但也不是明文密码
+        if (data.length() == 32 && data.matches("[0-9a-fA-F]{32}")) {
+            return true; // 假设这是旧的哈希格式，当作已加密处理
+        }
+
         try {
             // 如果能解密出来，且不等于原字符串，通常说明是加密过的
             String decrypted = aes.decryptStr(data);

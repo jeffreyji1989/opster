@@ -179,4 +179,23 @@ public class ServiceController {
         }
         return result;
     }
+
+    /**
+     * 上传启动脚本到服务器
+     */
+    @PostMapping("/{id}/upload-start-script")
+    public Map<String, Object> uploadStartScript(@PathVariable Integer id, @RequestBody Map<String, String> request) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            String scriptContent = request.get("scriptContent");
+            appServiceService.uploadStartScript(id, scriptContent);
+            result.put("success", true);
+            result.put("message", "脚本上传成功");
+        } catch (Exception e) {
+            log.error("Upload start script failed for service: {}", id, e);
+            result.put("success", false);
+            result.put("message", "上传失败: " + e.getMessage());
+        }
+        return result;
+    }
 }

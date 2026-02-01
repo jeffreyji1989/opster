@@ -41,6 +41,20 @@ public class LocalCommandUtils {
      * @return 执行是否成功
      */
     public static boolean executeCommand(Path workDir, String command, WebSocketSession wsSession, String[] envVars) {
+        return executeCommand(workDir, command, wsSession, envVars, null);
+    }
+
+    /**
+     * 执行本地命令并实时推送输出到WebSocket（支持环境变量和日志记录器）
+     *
+     * @param workDir 工作目录
+     * @param command 命令
+     * @param wsSession WebSocket会话
+     * @param envVars 环境变量数组（格式：["KEY=value", ...]
+     * @param logger 日志记录器（可选）
+     * @return 执行是否成功
+     */
+    public static boolean executeCommand(Path workDir, String command, WebSocketSession wsSession, String[] envVars, LocalBuildLogger logger) {
         try {
             log.info("Executing command: {} in directory: {}", command, workDir);
 
@@ -84,7 +98,11 @@ public class LocalCommandUtils {
 
             while ((line = reader.readLine()) != null) {
                 outputLines.add(line);
+                // 同时发送到 WebSocket 和日志文件
                 sendMessage(wsSession, line);
+                if (logger != null) {
+                    logger.log(line);
+                }
 
                 // 分析日志，识别成功/失败标识
                 isSuccess = analyzeLogLine(line, isSuccess);
@@ -97,14 +115,22 @@ public class LocalCommandUtils {
             // 如果退出码不为0，标记为失败
             if (exitCode != 0) {
                 isSuccess = false;
-                sendMessage(wsSession, ">>> Command failed with exit code: " + exitCode);
+                String errorMsg = ">>> Command failed with exit code: " + exitCode;
+                sendMessage(wsSession, errorMsg);
+                if (logger != null) {
+                    logger.error(errorMsg);
+                }
             }
 
             return isSuccess;
 
         } catch (Exception e) {
             log.error("Error executing command: {}", command, e);
-            sendMessage(wsSession, ">>> Error executing command: " + e.getMessage());
+            String errorMsg = ">>> Error executing command: " + e.getMessage();
+            sendMessage(wsSession, errorMsg);
+            if (logger != null) {
+                logger.error(errorMsg);
+            }
             return false;
         }
     }

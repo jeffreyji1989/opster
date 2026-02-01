@@ -33,6 +33,13 @@ public class SshUtils {
                  password != null ? password.length() : 0,
                  decryptedPassword != null ? decryptedPassword.length() : 0);
 
+        // 检测密码是否可能是未正确解密的格式
+        if (decryptedPassword != null && decryptedPassword.length() == 32 &&
+            decryptedPassword.matches("[0-9a-fA-F]{32}")) {
+            log.error("警告：密码可能是MD5哈希格式，无法用于SSH认证！请重新设置服务器密码。");
+            log.error("服务器 {}: {} 使用的密码可能是旧格式，需要在管理界面中重新输入正确的密码", host, user);
+        }
+
         session.setPassword(decryptedPassword);
 
         // 配置 SSH 连接参数（使用最基本的配置，避免兼容性问题）

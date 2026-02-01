@@ -37,9 +37,19 @@ public class OpsterProperties {
     private String encryptKey;
 
     /**
+     * JDK 多版本配置
+     */
+    private JdkConfig jdk = new JdkConfig();
+
+    /**
      * 构建相关配置
      */
     private BuildConfig build = new BuildConfig();
+
+    /**
+     * Node.js 版本管理配置
+     */
+    private NodeJsConfig nodejs = new NodeJsConfig();
 
     /**
      * 构建配置内部类
@@ -57,5 +67,47 @@ public class OpsterProperties {
          * 默认保留最近 5 个版本的打包产物
          */
         private int keepVersions = 5;
+    }
+
+    /**
+     * Node.js 配置内部类
+     */
+    @Data
+    public static class NodeJsConfig {
+        /**
+         * 是否启用 Node.js 版本管理
+         */
+        private Boolean enabled = true;
+
+        /**
+         * nvm 安装路径
+         */
+        private String nvmPath = System.getProperty("user.home") + "/.nvm";
+
+        /**
+         * 是否自动安装未安装的版本
+         */
+        private Boolean autoInstall = true;
+
+        /**
+         * 安装超时时间（秒）
+         */
+        private Integer installTimeout = 300;
+    }
+
+    /**
+     * JDK 配置内部类
+     */
+    @Data
+    public static class JdkConfig {
+        /**
+         * JDK 8 安装路径
+         */
+        private String jdk8;
+
+        /**
+         * JDK 17 安装路径
+         */
+        private String jdk17;
     }
 }

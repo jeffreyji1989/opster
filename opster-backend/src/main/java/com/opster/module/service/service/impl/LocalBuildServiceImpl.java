@@ -5,6 +5,7 @@ import com.opster.common.LocalCommandUtils;
 import com.opster.common.enums.RepositoryType;
 import com.opster.config.OpsterProperties;
 import com.opster.module.service.service.LocalBuildService;
+import com.opster.module.service.service.NodeVersionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     @Autowired
     private OpsterProperties opsterProperties;
 
+    @Autowired
+    private NodeVersionService nodeVersionService;
+
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Override
@@ -42,15 +46,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                              String gitBranch,
                              String buildCmd,
                              String projectPath,
-                             WebSocketSession wsSession) throws Exception {
+                             WebSocketSession wsSession,
+                             String username,
+                             String password,
+                             String nodeVersion) throws Exception {
         // 根据仓库类型选择构建方式
         if (repositoryType == RepositoryType.FRONTEND ||
             repositoryType == RepositoryType.MOBILE) {
-            // 前端或移动端项目使用npm构建
-            return buildNpmArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession);
+            // 前端或移动端项目使用npm构建，传递 nodeVersion 参数
+            return buildNpmArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
         } else {
-            // 后端或管理后台项目使用Maven构建
-            return buildMavenArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession);
+            // 后端或管理后台项目使用Maven构建，nodeVersion 参数作为 JDK 版本传递
+            return buildMavenArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
         }
     }
 
@@ -60,7 +67,10 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                    String gitBranch,
                                    String mavenCmd,
                                    String projectPath,
-                                   WebSocketSession wsSession) throws Exception {
+                                   WebSocketSession wsSession,
+                                   String username,
+                                   String password,
+                                   String jdkVersion) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
@@ -77,20 +87,15 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             logger.info("Git地址: " + gitUrl);
             logger.info("Git分支: " + gitBranch);
             logger.info("Maven命令: " + mavenCmd);
-
-            // 2. 准备工作目录
-            Path sourceDir = getSourceDir(projectCode);
-            LocalCommandUtils.createDirectories(sourceDir);
-
-            // 3. Git操作（clone或pull）
-            logger.info(">>> 开始Git操作...");
-            boolean gitSuccess = performGitOperation(sourceDir, gitUrl, gitBranch, wsSession, logger);
-            if (!gitSuccess) {
-                logger.error("Git操作失败");
-                throw new Exception("Git operation failed");
+            if (jdkVersion != null && !jdkVersion.isEmpty()) {
+                logger.info("JDK版本: " + jdkVersion);
             }
 
-            // 4. 处理项目路径（如果配置了子目录）
+            // 2. 准备工作目录
+            Path sourceDir = getUniqueSourceDir(projectCode, gitUrl);
+            LocalCommandUtils.createDirectories(sourceDir);
+
+            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
             Path buildDir = sourceDir;
             if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
@@ -99,11 +104,17 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
-                if (!Files.exists(buildDir)) {
-                    logger.error("项目路径不存在: " + buildDir);
-                    throw new Exception("Project path does not exist: " + projectPath);
-                }
-                logger.info("使用项目路径: " + projectPath);
+                LocalCommandUtils.createDirectories(buildDir);
+                logger.info("创建项目路径子目录: " + buildDir);
+            }
+
+            // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
+            logger.info(">>> 开始Git操作...");
+            logger.info(">>> 源码目录: " + buildDir);
+            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, logger, username, password);
+            if (!gitSuccess) {
+                logger.error("Git操作失败");
+                throw new Exception("Git operation failed");
             }
 
             // 5. 查找项目根目录
@@ -112,7 +123,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
             // 5. Maven打包
             logger.info(">>> 开始Maven打包...");
-            boolean mavenSuccess = executeMavenBuild(projectRoot, mavenCmd, wsSession, logger);
+            boolean mavenSuccess = executeMavenBuild(projectRoot, mavenCmd, mavenCmd, wsSession, logger);
             if (!mavenSuccess) {
                 logger.error("Maven打包失败");
                 throw new Exception("Maven build failed");
@@ -127,11 +138,12 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
             logger.info("打包产物: " + jarFile);
 
-            // 7. 归档产物
+            // 7. 归档产物（保持原始文件名，添加时间戳前缀避免冲突）
             Path artifactsDir = getArtifactsDir(projectCode);
             LocalCommandUtils.createDirectories(artifactsDir);
 
-            String artifactName = "app-backend-" + timestamp + ".jar";
+            String originalJarName = jarFile.getFileName().toString();
+            String artifactName = timestamp + "_" + originalJarName; // 例如: 20260131165555_eip-backend-1.0.0.jar
             Path artifactPath = artifactsDir.resolve(artifactName);
 
             Files.copy(jarFile, artifactPath, StandardCopyOption.REPLACE_EXISTING);
@@ -152,7 +164,10 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                 String gitBranch,
                                 String buildCmd,
                                 String projectPath,
-                                WebSocketSession wsSession) throws Exception {
+                                WebSocketSession wsSession,
+                                String username,
+                                String password,
+                                String nodeVersion) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
@@ -171,18 +186,10 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             logger.info("构建命令: " + buildCmd);
 
             // 2. 准备工作目录
-            Path sourceDir = getSourceDir(projectCode);
+            Path sourceDir = getUniqueSourceDir(projectCode, gitUrl);
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. Git操作（clone或pull）
-            logger.info(">>> 开始Git操作...");
-            boolean gitSuccess = performGitOperation(sourceDir, gitUrl, gitBranch, wsSession, logger);
-            if (!gitSuccess) {
-                logger.error("Git操作失败");
-                throw new Exception("Git operation failed");
-            }
-
-            // 4. 处理项目路径（如果配置了子目录）
+            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
             Path buildDir = sourceDir;
             if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
@@ -191,27 +198,70 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
-                if (!Files.exists(buildDir)) {
-                    logger.error("项目路径不存在: " + buildDir);
-                    throw new Exception("Project path does not exist: " + projectPath);
-                }
-                logger.info("使用项目路径: " + projectPath);
+                LocalCommandUtils.createDirectories(buildDir);
+                logger.info("创建项目路径子目录: " + buildDir);
+            }
+
+            // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
+            logger.info(">>> 开始Git操作...");
+            logger.info(">>> 源码目录: " + buildDir);
+            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, logger, username, password);
+            if (!gitSuccess) {
+                logger.error("Git操作失败");
+                throw new Exception("Git operation failed");
             }
 
             // 5. 查找package.json（前端项目根目录）
             Path projectRoot = findNpmProjectRoot(buildDir);
             logger.info("项目根目录: " + projectRoot);
 
-            // 5. npm安装依赖
+            // ========== Node.js 版本管理 ==========
+            String nodeBinDir = null;  // 用于存储 Node.js bin 目录路径
+            if (nodeVersion != null && !nodeVersion.isEmpty() && opsterProperties.getNodejs().getEnabled()) {
+                logger.info(">>> 检查 Node.js 版本: " + nodeVersion);
+
+                // 验证版本格式
+                if (!nodeVersionService.isValidVersionFormat(nodeVersion)) {
+                    throw new Exception("无效的 Node.js 版本号格式: " + nodeVersion + "，正确格式应为：v18.17.0");
+                }
+
+                // 检查版本是否已安装
+                if (!nodeVersionService.isVersionInstalled(nodeVersion)) {
+                    if (opsterProperties.getNodejs().getAutoInstall()) {
+                        logger.info(">>> Node.js 版本 " + nodeVersion + " 未安装，开始自动安装...");
+                        boolean installed = nodeVersionService.installVersion(nodeVersion);
+                        if (!installed) {
+                            throw new Exception("Node.js 版本 " + nodeVersion + " 安装失败");
+                        }
+                        logger.info(">>> Node.js 版本 " + nodeVersion + " 安装成功");
+                    } else {
+                        throw new Exception("Node.js 版本 " + nodeVersion + " 未安装且自动安装已禁用");
+                    }
+                }
+
+                // 获取 Node.js 路径
+                String nodePath = nodeVersionService.getNodePath(nodeVersion);
+                logger.info(">>> 使用 Node.js 版本: " + nodeVersion + " (" + nodePath + ")");
+
+                // 获取 bin 目录（node 可执行文件的父目录）
+                File nodeFile = new File(nodePath);
+                nodeBinDir = nodeFile.getParent();
+                logger.info(">>> Node.js bin 目录: " + nodeBinDir);
+            } else {
+                logger.info(">>> 使用系统默认 Node.js 版本");
+            }
+            // ==========================================
+
+            // 6. npm安装依赖
             logger.info(">>> 开始npm install...");
-            boolean npmInstallSuccess = executeNpmInstall(projectRoot, wsSession, logger);
+            boolean npmInstallSuccess = executeNpmInstall(projectRoot, nodeBinDir, wsSession, logger);
             if (!npmInstallSuccess) {
                 logger.warn("npm install失败，但继续尝试构建");
             }
 
-            // 6. npm打包
+            // 7. npm打包
             logger.info(">>> 开始npm构建...");
-            boolean buildSuccess = executeNpmBuild(projectRoot, buildCmd, wsSession, logger);
+            boolean buildSuccess = executeNpmBuild(projectRoot, buildCmd, nodeBinDir, wsSession, logger);
             if (!buildSuccess) {
                 logger.error("npm构建失败");
                 throw new Exception("npm build failed");
@@ -287,6 +337,20 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         return Paths.get(deployPath, projectCode, "source");
     }
 
+    /**
+     * 获取源码目录（统一使用 source 目录）
+     * 同一项目的不同服务通过 projectPath 字段区分子目录
+     *
+     * @param projectCode 项目编码
+     * @param gitUrl Git 仓库地址（不再使用，保留参数兼容性）
+     * @return 源码目录
+     */
+    private Path getUniqueSourceDir(String projectCode, String gitUrl) {
+        // 统一使用 source 目录，通过 projectPath 字段区分不同子项目
+        String deployPath = opsterProperties.getDeployPath();
+        return Paths.get(deployPath, projectCode, "source");
+    }
+
     @Override
     public Path getArtifactsDir(String projectCode) {
         String deployPath = opsterProperties.getDeployPath();
@@ -303,16 +367,29 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 执行Git操作（clone或pull）
+     *
+     * @param sourceDir 源码目录
+     * @param gitUrl Git仓库地址
+     * @param gitBranch Git分支
+     * @param wsSession WebSocket会话
+     * @param logger 日志记录器
+     * @param username Git认证用户名（可选）
+     * @param password Git认证密码（可选）
+     * @return 操作是否成功
      */
     private boolean performGitOperation(Path sourceDir, String gitUrl, String gitBranch,
-                                       WebSocketSession wsSession, LocalBuildLogger logger) {
+                                       WebSocketSession wsSession, LocalBuildLogger logger,
+                                       String username, String password) {
         try {
+            // 如果提供了用户名和密码，构建带认证的Git URL
+            String authenticatedUrl = buildAuthenticatedGitUrl(gitUrl, username, password);
+
             if (LocalCommandUtils.directoryExists(sourceDir.resolve(".git"))) {
                 // 目录已存在，执行pull
                 logger.info("检测到Git仓库已存在，执行git pull...");
                 String pullCmd = String.format("git fetch origin && git checkout %s && git pull origin %s",
                     gitBranch, gitBranch);
-                boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession);
+                boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession, null, logger);
                 if (!result) {
                     logger.error("git pull 命令执行失败");
                 }
@@ -326,8 +403,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 }
                 LocalCommandUtils.createDirectories(sourceDir);
 
-                String cloneCmd = String.format("git clone -b %s %s .", gitBranch, gitUrl);
-                boolean result = LocalCommandUtils.executeCommand(sourceDir, cloneCmd, wsSession);
+                String cloneCmd = String.format("git clone -b %s %s .", gitBranch, authenticatedUrl);
+                boolean result = LocalCommandUtils.executeCommand(sourceDir, cloneCmd, wsSession, null, logger);
                 if (!result) {
                     logger.error("git clone 命令执行失败");
                 }
@@ -336,6 +413,43 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         } catch (Exception e) {
             logger.error("Git操作失败", e);
             return false;
+        }
+    }
+
+    /**
+     * 构建带认证的Git URL
+     *
+     * @param gitUrl 原始Git URL
+     * @param username 用户名（可选）
+     * @param password 密码（可选）
+     * @return 带认证的Git URL，如果未提供认证信息则返回原始URL
+     */
+    private String buildAuthenticatedGitUrl(String gitUrl, String username, String password) {
+        // 如果没有提供用户名和密码，返回原始URL
+        if (username == null || username.trim().isEmpty() ||
+            password == null || password.trim().isEmpty()) {
+            return gitUrl;
+        }
+
+        try {
+            // 只对HTTP/HTTPS URL添加认证信息
+            if (gitUrl.startsWith("http://") || gitUrl.startsWith("https://")) {
+                // 解析URL并插入认证信息
+                // 例如: https://git.example.com/repo.git
+                // 变为: https://username:password@git.example.com/repo.git
+
+                String protocol = gitUrl.contains("https://") ? "https://" : "http://";
+                String restOfUrl = gitUrl.substring(protocol.length());
+
+                // 构建带认证的URL
+                return protocol + username + ":" + password + "@" + restOfUrl;
+            }
+
+            // SSH URL不需要在这里处理认证（应该使用SSH密钥）
+            return gitUrl;
+        } catch (Exception e) {
+            log.error("Error building authenticated Git URL", e);
+            return gitUrl;
         }
     }
 
@@ -364,12 +478,30 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 执行Maven构建
+     * @param projectRoot 项目根目录
+     * @param mavenCmd Maven命令
+     * @param jdkVersion JDK版本（jdk8、jdk17 或 null）
+     * @param wsSession WebSocket会话
+     * @param logger 日志记录器
      */
-    private boolean executeMavenBuild(Path projectRoot, String mavenCmd,
+    private boolean executeMavenBuild(Path projectRoot, String mavenCmd, String jdkVersion,
                                      WebSocketSession wsSession, LocalBuildLogger logger) {
         // 设置环境变量
         String mavenHome = opsterProperties.getMavenHome();
-        String javaHome = opsterProperties.getJavaHome();
+        String javaHome;
+
+        // 根据 jdkVersion 选择 JAVA_HOME
+        if ("jdk8".equals(jdkVersion)) {
+            javaHome = opsterProperties.getJdk().getJdk8();
+            logger.info("使用 JDK 8: " + javaHome);
+        } else if ("jdk17".equals(jdkVersion)) {
+            javaHome = opsterProperties.getJdk().getJdk17();
+            logger.info("使用 JDK 17: " + javaHome);
+        } else {
+            // 默认使用配置的 java-home
+            javaHome = opsterProperties.getJavaHome();
+            logger.info("使用默认 JDK: " + javaHome);
+        }
 
         // 修正macOS上的JAVA_HOME路径
         // macOS的JDK目录结构: jdk-25.jdk/Contents/Home
@@ -388,13 +520,24 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             systemPath = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
         }
 
+        // 修正 M2_HOME 和 PATH（如果配置已包含 /bin，需要去除）
+        String mavenHomeForEnv = mavenHome.endsWith("/bin") ?
+            mavenHome.substring(0, mavenHome.length() - 4) : mavenHome;
+
         String[] envVars = {
             "JAVA_HOME=" + correctedJavaHome,
-            "M2_HOME=" + mavenHome,
-            "PATH=" + mavenHome + "/bin:" + correctedJavaHome + "/bin:" + systemPath
+            "M2_HOME=" + mavenHomeForEnv,
+            "PATH=" + mavenHomeForEnv + "/bin:" + correctedJavaHome + "/bin:" + systemPath
         };
 
-        return LocalCommandUtils.executeCommand(projectRoot, mavenCmd, wsSession, envVars);
+        logger.info("JAVA_HOME: " + correctedJavaHome);
+        logger.info("M2_HOME: " + mavenHomeForEnv);
+        logger.info("Maven命令: " + mavenCmd);
+        logger.info("使用PATH中的Maven: " + mavenHomeForEnv + "/bin/mvn");
+
+        // 传递 logger 参数以记录命令输出
+        // Maven命令直接使用配置的命令，通过PATH环境变量找到mvn
+        return LocalCommandUtils.executeCommand(projectRoot, mavenCmd, wsSession, envVars, logger);
     }
 
     /**
@@ -445,17 +588,41 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 执行npm install
+     * @param nodeBinDir Node.js bin 目录路径，如果为 null 则使用系统默认
      */
-    private boolean executeNpmInstall(Path projectRoot, WebSocketSession wsSession, LocalBuildLogger logger) {
-        return LocalCommandUtils.executeCommand(projectRoot, "npm install", wsSession);
+    private boolean executeNpmInstall(Path projectRoot, String nodeBinDir, WebSocketSession wsSession, LocalBuildLogger logger) {
+        String[] envVars = buildNodeEnvVars(nodeBinDir);
+        return LocalCommandUtils.executeCommand(projectRoot, "npm install", wsSession, envVars, logger);
     }
 
     /**
      * 执行npm构建
+     * @param nodeBinDir Node.js bin 目录路径，如果为 null 则使用系统默认
      */
-    private boolean executeNpmBuild(Path projectRoot, String buildCmd,
+    private boolean executeNpmBuild(Path projectRoot, String buildCmd, String nodeBinDir,
                                    WebSocketSession wsSession, LocalBuildLogger logger) {
-        return LocalCommandUtils.executeCommand(projectRoot, buildCmd, wsSession);
+        String[] envVars = buildNodeEnvVars(nodeBinDir);
+        return LocalCommandUtils.executeCommand(projectRoot, buildCmd, wsSession, envVars, logger);
+    }
+
+    /**
+     * 构建 Node.js 环境变量
+     * @param nodeBinDir Node.js bin 目录路径，如果为 null 则返回 null
+     * @return 环境变量数组，将 Node.js bin 目录添加到 PATH 前面
+     */
+    private String[] buildNodeEnvVars(String nodeBinDir) {
+        if (nodeBinDir == null || nodeBinDir.isEmpty()) {
+            return null;
+        }
+
+        // 获取系统 PATH
+        String systemPath = System.getenv("PATH");
+
+        // 将指定版本的 Node.js bin 目录添加到 PATH 最前面
+        // 这样执行 npm/node 时会优先使用指定版本
+        String newPath = nodeBinDir + ":" + systemPath;
+
+        return new String[]{"PATH=" + newPath};
     }
 
     /**

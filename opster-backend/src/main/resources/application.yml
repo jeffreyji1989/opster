@@ -38,3 +38,13 @@ opster:
   maven-home: /Users/deffrey/D1_JEFFREY/soft/apache-maven-3.8.6
   java-home: /Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
   encrypt-key: "opster-secret-key"
+  # JDK 多版本配置
+  jdk:
+    jdk8: /Library/Java/JavaVirtualMachines/jdk1.8.0_421.jdk/Contents/Home
+    jdk17: /Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home
+  # Node.js 版本管理配置
+  nodejs:
+    enabled: true
+    nvm-path: ~/.nvm
+    auto-install: true
+    install-timeout: 3000

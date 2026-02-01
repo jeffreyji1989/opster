@@ -198,7 +198,8 @@ public class AppServiceServiceImpl implements AppServiceService {
 
                     projectRepository.findById(service.getProjectId()).ifPresent(p -> {
                         map.put("projectName", p.getProjectName());
-                        map.put("monitorUrl", p.getMonitorUrl());
+                        // 监控地址从服务配置获取，不再从项目配置获取
+                        map.put("monitorUrl", service.getMonitorUrl());
                     });
 
                     serverRepository.findById(service.getServerId()).ifPresent(s -> {
@@ -209,5 +210,77 @@ public class AppServiceServiceImpl implements AppServiceService {
                     return map;
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public void uploadStartScript(Integer id, String scriptContent) throws Exception {
+        // 获取服务配置
+        Optional<AppService> serviceOpt = findById(id);
+        if (serviceOpt.isEmpty()) {
+            throw new Exception("服务不存在");
+        }
+        AppService service = serviceOpt.get();
+
+        // 获取服务器信息
+        Optional<Server> serverOpt = serverRepository.findById(service.getServerId());
+        if (serverOpt.isEmpty()) {
+            throw new Exception("服务器不存在");
+        }
+        Server server = serverOpt.get();
+
+        // 获取项目信息
+        Optional<Project> projectOpt = projectRepository.findById(service.getProjectId());
+        if (projectOpt.isEmpty()) {
+            throw new Exception("项目不存在");
+        }
+        Project project = projectOpt.get();
+
+        // 构建部署路径
+        String deployPath = project.getDeployPath();
+        String projectCode = project.getProjectCode();
+        String projectPath = service.getProjectPath();
+
+        StringBuilder fullPath = new StringBuilder(deployPath);
+        if (StrUtil.isNotBlank(projectCode)) {
+            fullPath.append("/").append(projectCode);
+            if (StrUtil.isNotBlank(projectPath)) {
+                fullPath.append("/").append(projectPath);
+            }
+        }
+
+        String deployDir = fullPath.toString();
+        String scriptFile = deployDir + "/start.sh";
+
+        Session session = null;
+        try {
+            session = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+
+            // 检查脚本是否已上传过
+            boolean alreadyUploaded = service.getScriptUploaded() != null && service.getScriptUploaded() == 1;
+
+            if (alreadyUploaded) {
+                // 如果已上传过，先备份旧脚本
+                String timestamp = new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                String backupFile = scriptFile + "." + timestamp;
+                SshUtils.exec(session, "mv " + scriptFile + " " + backupFile);
+            }
+
+            // 使用 cat 命令创建文件
+            String createScriptCmd = "cat > " + scriptFile + " << 'EOF_SCRIPT'\n" +
+                    scriptContent + "\n" +
+                    "EOF_SCRIPT";
+
+            SshUtils.exec(session, createScriptCmd);
+
+            // 添加执行权限
+            SshUtils.exec(session, "chmod +x " + scriptFile);
+
+            // 更新上传状态
+            service.setScriptUploaded(1);
+            appServiceRepository.save(service);
+
+        } finally {
+            SshUtils.disconnect(session);
+        }
     }
 }

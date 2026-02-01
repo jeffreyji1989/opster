@@ -21,6 +21,9 @@ public interface LocalBuildService {
      * @param buildCmd 构建命令（Maven或npm命令）
      * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-backend
      * @param wsSession WebSocket会话，用于实时推送日志
+     * @param username Git认证用户名（可选）
+     * @param password Git认证密码（可选）
+     * @param nodeVersion Node.js 版本号（可选），仅前端项目有效
      * @return 打包产物的本地路径（jar文件或zip文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -30,7 +33,10 @@ public interface LocalBuildService {
                       String gitBranch,
                       String buildCmd,
                       String projectPath,
-                      WebSocketSession wsSession) throws Exception;
+                      WebSocketSession wsSession,
+                      String username,
+                      String password,
+                      String nodeVersion) throws Exception;
 
     /**
      * 执行本地Maven打包
@@ -41,6 +47,9 @@ public interface LocalBuildService {
      * @param mavenCmd Maven构建命令
      * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-backend
      * @param wsSession WebSocket会话
+     * @param username Git认证用户名（可选）
+     * @param password Git认证密码（可选）
+     * @param jdkVersion JDK版本（可选）：jdk8、jdk17
      * @return 打包产物的本地路径（jar文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -49,7 +58,10 @@ public interface LocalBuildService {
                            String gitBranch,
                            String mavenCmd,
                            String projectPath,
-                           WebSocketSession wsSession) throws Exception;
+                           WebSocketSession wsSession,
+                           String username,
+                           String password,
+                           String jdkVersion) throws Exception;
 
     /**
      * 执行本地npm打包
@@ -60,6 +72,9 @@ public interface LocalBuildService {
      * @param buildCmd 构建命令（如：npm run build）
      * @param projectPath 项目路径（相对Git仓库的子目录路径），例如：opster-frontend
      * @param wsSession WebSocket会话
+     * @param username Git认证用户名（可选）
+     * @param password Git认证密码（可选）
+     * @param nodeVersion Node.js 版本号（可选），格式：v18.17.0
      * @return 打包产物的本地路径（zip文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -68,7 +83,10 @@ public interface LocalBuildService {
                          String gitBranch,
                          String buildCmd,
                          String projectPath,
-                         WebSocketSession wsSession) throws Exception;
+                         WebSocketSession wsSession,
+                         String username,
+                         String password,
+                         String nodeVersion) throws Exception;
 
     /**
      * 清理旧版本的打包产物
