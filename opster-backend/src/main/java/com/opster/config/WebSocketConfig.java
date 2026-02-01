@@ -27,14 +27,14 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-        // 注册 ExecWebSocketHandler
+        // 注册 ExecWebSocketHandler - 用于长时间构建
         registry.addHandler(execWebSocketHandler, "/ws/exec/**")
                 .setAllowedOrigins("*");
-        
-        // 注册 LogWebSocketHandler
+
+        // 注册 LogWebSocketHandler - 用于长时间构建
         registry.addHandler(logWebSocketHandler, "/ws/log/**")
                 .setAllowedOrigins("*");
-        
+
         // 注册 TerminalWebSocketHandler
         registry.addHandler(terminalWebSocketHandler, "/ws/terminal/**")
                 .setAllowedOrigins("*");

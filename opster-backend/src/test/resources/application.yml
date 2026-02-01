@@ -1,13 +1,20 @@
 spring:
   datasource:
     driver-class-name: org.sqlite.JDBC
-    url: jdbc:sqlite::memory:
-    username: 
-    password: 
+    url: "jdbc:sqlite::memory:"
+    username:
+    password:
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+  ai:
+    dashscope:
+      api-key: "test-api-key"  # 测试用的假 API key
+      chat:
+        enabled: false  # 禁用聊天功能
+      embedding:
+        enabled: false
 
 mybatis-plus:
   configuration:
@@ -15,3 +22,14 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: auto
+
+opster:
+  deploy-path: /tmp/test-deploy
+  maven-home: /tmp/test-maven
+  java-home: /tmp/test-java
+  encrypt-key: "test-secret-key"
+  nodejs:
+    enabled: true
+    nvm-path: ~/.nvm
+    auto-install: false  # 测试环境禁用自动安装
+    install-timeout: 300

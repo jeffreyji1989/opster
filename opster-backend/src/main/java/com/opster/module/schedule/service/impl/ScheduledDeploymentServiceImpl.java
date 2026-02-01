@@ -239,7 +239,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             record.setStatus(DeploymentStatus.IN_PROGRESS);
 
             // 构建远程部署目录路径
-            String remoteDir = buildRemoteDir(service, project.getProjectCode());
+            String remoteDir = buildRemoteDir(project, service);
 
             // 生成日志文件路径
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
@@ -271,12 +271,12 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
      * 构建远程服务器部署目录路径
      * 如果配置了项目路径，则在基础路径后追加项目路径
      *
+     * @param project 项目配置
      * @param service 服务配置
-     * @param projectCode 项目编码
      * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
      */
-    private String buildRemoteDir(AppService service, String projectCode) {
-        String baseDir = service.getDeployPath() + "/" + projectCode;
+    private String buildRemoteDir(Project project, AppService service) {
+        String baseDir = project.getDeployPath() + "/" + project.getProjectCode();
 
         // 如果配置了项目路径，则追加到基础路径后
         if (StrUtil.isNotBlank(service.getProjectPath())) {

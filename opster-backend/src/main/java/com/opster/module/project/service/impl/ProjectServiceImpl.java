@@ -1,9 +1,11 @@
 package com.opster.module.project.service.impl;
 
 import com.opster.common.enums.Status;
+import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.project.service.ProjectService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import jakarta.persistence.criteria.Predicate;
 
+@Slf4j
 @Service
 @Transactional
 public class ProjectServiceImpl implements ProjectService {
@@ -32,22 +35,22 @@ public class ProjectServiceImpl implements ProjectService {
     public List<Project> findList(String projectName, String businessLine, Integer status) {
         Specification<Project> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
-            
+
             if (projectName != null && !projectName.isEmpty()) {
                 predicates.add(cb.like(root.get("projectName"), "%" + projectName + "%"));
             }
-            
+
             if (businessLine != null && !businessLine.isEmpty()) {
                 predicates.add(cb.like(root.get("businessLine"), "%" + businessLine + "%"));
             }
-            
+
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), Status.fromCode(status)));
             }
-            
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        
+
         return projectRepository.findAll(spec);
     }
 
@@ -63,6 +66,8 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public Project save(Project project) {
+        // RepositoryDTO 已经移除了 username 和 password 字段
+        // Jackson 会自动忽略 JSON 中的未知字段，所以这里不需要特殊处理
         return projectRepository.save(project);
     }
 

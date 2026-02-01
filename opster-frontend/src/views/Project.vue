@@ -60,30 +60,38 @@
         <el-form-item label="负责人">
           <el-input v-model="form.projectOwner" />
         </el-form-item>
+        <el-form-item label="Git 认证">
+          <el-input v-model="form.gitUsername" placeholder="用户名（可选）" style="width: 200px; margin-right: 10px" />
+          <el-input v-model="form.gitPassword" type="password" placeholder="密码（可选）" style="width: 200px" show-password />
+          <span style="font-size: 12px; color: #999; margin-left: 10px">用于 Git 仓库认证（HTTP/HTTPS）</span>
+        </el-form-item>
         <el-form-item label="Git 仓库">
-          <div v-for="(repo, index) in form.repositories" :key="index" class="repo-row">
-            <el-select v-model="repo.type" placeholder="类型" style="width: 110px">
-              <el-option label="前端" :value="0" />
-              <el-option label="后端" :value="1" />
-              <el-option label="管理后台" :value="2" />
-              <el-option label="移动端" :value="3" />
-            </el-select>
+          <div v-for="(repo, index) in form.repositories" :key="index" class="repo-container">
+            <div class="repo-row">
+              <el-select v-model="repo.type" placeholder="类型" style="width: 90px">
+                <el-option label="前端" :value="0" />
+                <el-option label="后端" :value="1" />
+                <el-option label="管理后台" :value="2" />
+                <el-option label="移动端" :value="3" />
+              </el-select>
 
-            <el-input v-model="repo.gitUrl" placeholder="Git 仓库地址" style="width: 300px" />
-            <el-input v-model="repo.projectPath" placeholder="项目路径" style="width: 180px" />
-            <el-input v-model="repo.description" placeholder="描述" style="width: 150px" />
+              <el-input v-model="repo.gitUrl" placeholder="Git 仓库地址" style="flex: 1" class="repo-git-url" />
 
-            <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain>
-              删除
-            </el-button>
+              <el-input v-model="repo.projectPath" placeholder="项目路径" style="width: 140px" />
+
+              <el-input v-model="repo.description" placeholder="描述" style="width: 100px" />
+
+              <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain icon="Delete">
+              </el-button>
+            </div>
           </div>
 
-          <el-button @click="addRepository" type="primary" plain style="margin-top: 10px; width: 100%;">
+          <el-button @click="addRepository" type="primary" plain style="margin-top: 8px; width: 100%;">
             + 添加仓库
           </el-button>
         </el-form-item>
-        <el-form-item label="监控地址">
-          <el-input v-model="form.monitorUrl" />
+        <el-form-item label="部署根目录">
+          <el-input v-model="form.deployPath" placeholder="例如: /data/deploy" />
         </el-form-item>
         <el-form-item label="业务线">
           <el-input v-model="form.businessLine" />
@@ -148,11 +156,13 @@ const form = reactive({
   projectCode: '',
   projectName: '',
   projectOwner: '',
+  gitUsername: '',
+  gitPassword: '',
   repositories: [
     { type: 0, gitUrl: '', projectPath: '', description: '' },
     { type: 1, gitUrl: '', projectPath: '', description: '' }
   ],
-  monitorUrl: '',
+  deployPath: '',
   businessLine: '',
   status: 1
 })
@@ -198,42 +208,70 @@ const handleAdd = () => {
   form.projectCode = ''
   form.projectName = ''
   form.projectOwner = ''
+  form.gitUsername = ''
+  form.gitPassword = ''
   form.repositories = [
     { type: 0, gitUrl: '', projectPath: '', description: '' },
     { type: 1, gitUrl: '', projectPath: '', description: '' }
   ]
-  form.monitorUrl = ''
+  form.deployPath = ''
   form.businessLine = ''
   form.status = 1
   dialogVisible.value = true
 }
 
 const handleEdit = (row) => {
+  // 只复制需要的字段，避免包含已删除的数据库字段
   Object.assign(form, {
-    ...row,
+    id: row.id,
+    projectCode: row.projectCode,
+    projectName: row.projectName,
+    projectOwner: row.projectOwner,
+    gitUsername: row.gitUsername || '',
+    gitPassword: row.gitPassword || '',
     repositories: Array.isArray(row.repositories) && row.repositories.length > 0
       ? JSON.parse(JSON.stringify(row.repositories))
       : [
           { type: 0, gitUrl: '', projectPath: '', description: '' },
           { type: 1, gitUrl: '', projectPath: '', description: '' }
-        ]
+        ],
+    deployPath: row.deployPath || '',
+    businessLine: row.businessLine || '',
+    status: row.status ?? 1
   })
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
   try {
+    // 构建提交数据，只包含必要字段
+    const data = {
+      projectCode: form.projectCode,
+      projectName: form.projectName,
+      projectOwner: form.projectOwner,
+      gitUsername: form.gitUsername || null,
+      gitPassword: form.gitPassword || null,
+      repositories: form.repositories,
+      deployPath: form.deployPath || null,
+      businessLine: form.businessLine || null,
+      status: form.status
+    }
+
     if (form.id) {
-      await request.put('/project', form)
+      // 编辑模式，添加 id
+      data.id = form.id
+      console.log('提交的数据:', JSON.stringify(data, null, 2))
+      await request.put('/project', data)
       ElMessage.success('更新成功')
     } else {
-      await request.post('/project', form)
+      console.log('提交的数据:', JSON.stringify(data, null, 2))
+      await request.post('/project', data)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
     fetchData()
   } catch (e) {
-    // handled in interceptor
+    console.error('保存失败:', e)
   }
 }
 
@@ -304,10 +342,21 @@ onMounted(fetchData)
   margin-bottom: 20px;
 }
 
+.repo-container {
+  margin-bottom: 8px;
+  padding: 8px;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+
 .repo-row {
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 8px;
   align-items: center;
+}
+
+.repo-git-url {
+  min-width: 0;
 }
 </style>
