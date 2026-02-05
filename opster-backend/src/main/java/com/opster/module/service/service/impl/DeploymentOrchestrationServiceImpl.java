@@ -891,19 +891,86 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                                      WebSocketSession wsSession) throws Exception {
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
+        Server server = serverRepository.findById(service.getServerId())
+            .orElseThrow(() -> new Exception("服务器不存在"));
 
         String remoteDir = buildRemoteDir(project, service);
-        String envVars = String.format(
-            "export JAVA_HOME=%s && export M2_HOME=%s",
-            javaHome, mavenHome
-        );
 
+        // 先停止旧服务
+        stopRemoteService(sshSession, remoteDir, wsSession);
+
+        // 构建环境变量前置命令
+        StringBuilder envPrefix = new StringBuilder();
+
+        // 如果服务器配置了 JAVA_HOME，使用配置的
+        if (server.getJavaHome() != null && !server.getJavaHome().isEmpty()) {
+            envPrefix.append(String.format("export JAVA_HOME='%s'; ", server.getJavaHome()));
+            envPrefix.append(String.format("export PATH='%s/bin':$PATH; ", server.getJavaHome()));
+        }
+
+        // 如果服务器配置了 M2_HOME，使用配置的
+        if (server.getMavenHome() != null && !server.getMavenHome().isEmpty()) {
+            envPrefix.append(String.format("export M2_HOME='%s'; ", server.getMavenHome()));
+            envPrefix.append(String.format("export PATH='%s/bin':$PATH; ", server.getMavenHome()));
+        }
+
+        // 使用 bash -l 直接执行启动脚本
+        // -l 参数表示 login shell，会自动加载 /etc/profile 和 ~/.bash_profile
+        // 这样环境就和你直接登录服务器执行命令完全一样了
         String restartCmd = String.format(
-            "source /etc/profile && %s && cd %s && sh %s",
-            envVars, remoteDir, service.getStartScript()
+            "cd '%s' && %s bash -l '%s'",
+            remoteDir, envPrefix.toString(), service.getStartScript()
         );
 
         executeRemoteCommand(wsSession, sshSession, restartCmd);
+    }
+
+    /**
+     * 停止远程服务（内部方法）
+     */
+    private void stopRemoteService(Session sshSession, String remoteDir,
+                                  WebSocketSession wsSession) throws Exception {
+        String stopCmd = String.format(
+            "cd '%s' && " +
+            "if [ -f app.pid ]; then " +
+            "  pid=$(cat app.pid); " +
+            "  if ps -p $pid > /dev/null 2>&1; then " +
+            "    kill $pid 2>/dev/null; " +
+            "    sleep 2; " +
+            "    if ps -p $pid > /dev/null 2>&1; then " +
+            "      kill -9 $pid 2>/dev/null; " +
+            "    fi; " +
+            "  fi; " +
+            "  rm -f app.pid; " +
+            "fi && " +
+            "pkill -f 'opster-backend.*jar' 2>/dev/null || true",
+            remoteDir
+        );
+        executeRemoteCommand(wsSession, sshSession, stopCmd);
+    }
+
+    /**
+     * 停止远程服务（内部方法，使用 LocalDeploymentLogger）
+     */
+    private void stopRemoteService(Session sshSession, String remoteDir,
+                                  LocalDeploymentLogger logger) throws Exception {
+        String stopCmd = String.format(
+            "cd '%s' && " +
+            "if [ -f app.pid ]; then " +
+            "  pid=$(cat app.pid); " +
+            "  if ps -p $pid > /dev/null 2>&1; then " +
+            "    kill $pid 2>/dev/null; " +
+            "    sleep 2; " +
+            "    if ps -p $pid > /dev/null 2>&1; then " +
+            "      kill -9 $pid 2>/dev/null; " +
+            "    fi; " +
+            "  fi; " +
+            "  rm -f app.pid; " +
+            "fi && " +
+            "pkill -f 'opster-backend.*jar' 2>/dev/null || true",
+            remoteDir
+        );
+        executeRemoteCommand(logger, sshSession, stopCmd);
     }
 
     /**
@@ -913,16 +980,35 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                                      LocalDeploymentLogger logger) throws Exception {
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
+        Server server = serverRepository.findById(service.getServerId())
+            .orElseThrow(() -> new Exception("服务器不存在"));
 
         String remoteDir = buildRemoteDir(project, service);
-        String envVars = String.format(
-            "export JAVA_HOME=%s && export M2_HOME=%s",
-            javaHome, mavenHome
-        );
 
+        // 先停止旧服务
+        stopRemoteService(sshSession, remoteDir, logger);
+
+        // 构建环境变量前置命令
+        StringBuilder envPrefix = new StringBuilder();
+
+        // 如果服务器配置了 JAVA_HOME，使用配置的
+        if (server.getJavaHome() != null && !server.getJavaHome().isEmpty()) {
+            envPrefix.append(String.format("export JAVA_HOME='%s'; ", server.getJavaHome()));
+            envPrefix.append(String.format("export PATH='%s/bin':$PATH; ", server.getJavaHome()));
+        }
+
+        // 如果服务器配置了 M2_HOME，使用配置的
+        if (server.getMavenHome() != null && !server.getMavenHome().isEmpty()) {
+            envPrefix.append(String.format("export M2_HOME='%s'; ", server.getMavenHome()));
+            envPrefix.append(String.format("export PATH='%s/bin':$PATH; ", server.getMavenHome()));
+        }
+
+        // 使用 bash -l 直接执行启动脚本
+        // -l 参数表示 login shell，会自动加载 /etc/profile 和 ~/.bash_profile
+        // 这样环境就和你直接登录服务器执行命令完全一样了
         String restartCmd = String.format(
-            "source /etc/profile && %s && cd %s && sh %s",
-            envVars, remoteDir, service.getStartScript()
+            "cd '%s' && %s bash -l '%s'",
+            remoteDir, envPrefix.toString(), service.getStartScript()
         );
 
         executeRemoteCommand(logger, sshSession, restartCmd);

@@ -255,6 +255,10 @@ public class AppServiceServiceImpl implements AppServiceService {
         try {
             session = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
 
+            // 检查并创建部署目录（如果不存在）
+            String mkdirCmd = "mkdir -p " + deployDir;
+            SshUtils.exec(session, mkdirCmd);
+
             // 检查脚本是否已上传过
             boolean alreadyUploaded = service.getScriptUploaded() != null && service.getScriptUploaded() == 1;
 

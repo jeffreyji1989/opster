@@ -69,4 +69,16 @@ public class Server extends BaseEntity {
      */
     @Column(name = "deployed_count")
     private Integer deployedCount;
+
+    /**
+     * JAVA_HOME 路径（可选，如果不设置则使用系统默认）
+     */
+    @Column(name = "java_home")
+    private String javaHome;
+
+    /**
+     * MAVEN_HOME 路径（可选，如果不设置则使用系统默认）
+     */
+    @Column(name = "maven_home")
+    private String mavenHome;
 }
