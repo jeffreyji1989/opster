@@ -1303,10 +1303,48 @@ log_warn() {
 
 # 检查Java是否可用
 check_java() {
-    if ! command -v java &> /dev/null; then
-        log_error "Java 未安装或不在 PATH 中"
-        exit 1
+    # 优先使用 JAVA_HOME 中的 java
+    if [ -n "\$JAVA_HOME" ] && [ -x "\$JAVA_HOME/bin/java" ]; then
+        export PATH="\$JAVA_HOME/bin:\$PATH"
+        log_info "使用 JAVA_HOME 中的 Java: \$JAVA_HOME/bin/java"
+        return 0
     fi
+
+    # 如果 JAVA_HOME 未设置，尝试自动检测常见的 Java 安装路径
+    local common_java_paths=(
+        "/usr/lib/jvm/java-17-openjdk"
+        "/usr/lib/jvm/java-17"
+        "/usr/lib/jvm/java-11-openjdk"
+        "/usr/lib/jvm/java-11"
+        "/usr/lib/jvm/java-8-openjdk"
+        "/usr/lib/jvm/java-8"
+        "/usr/lib/jvm/default-java"
+        "/usr/java/default"
+        "/opt/java/jdk17"
+        "/opt/java/jdk11"
+        "/usr/local/java/jdk17"
+        "/usr/local/java/jdk11"
+    )
+
+    for java_path in "\${common_java_paths[@]}"; do
+        if [ -x "\$java_path/bin/java" ]; then
+            export JAVA_HOME="\$java_path"
+            export PATH="\$JAVA_HOME/bin:\$PATH"
+            log_info "自动检测到 Java: \$JAVA_HOME/bin/java"
+            return 0
+        fi
+    done
+
+    # 最后尝试使用 PATH 中的 java
+    if command -v java &> /dev/null; then
+        log_info "使用 PATH 中的 Java: \$(which java)"
+        return 0
+    fi
+
+    # 都找不到，报错
+    log_error "Java 未安装或不在 PATH 中"
+    log_error "请设置 JAVA_HOME 环境变量指向 Java 安装目录"
+    exit 1
 }
 
 # 获取应用PID
@@ -1319,9 +1357,23 @@ get_pid() {
 # 检查应用是否已运行
 check_running() {
     local pid=\$(get_pid)
-    if [ -n "\$pid" ] && ps -p "\$pid" > /dev/null 2>&1; then
-        log_error "应用已在运行 (PID: \$pid)"
-        exit 1
+    if [ -n "\$pid" ]; then
+        if ps -p "\$pid" > /dev/null 2>&1; then
+            # 进程存在，进一步验证是否是 Java 进程
+            if ps -p "\$pid" -o command= | grep -q "java.*jar"; then
+                log_error "应用已在运行 (PID: \$pid)"
+                log_error "如需重启，请先执行: sh stop.sh 或 kill \$pid"
+                exit 1
+            else
+                # PID 存在但不是 Java 进程，可能是 PID 重用
+                log_warn "检测到旧 PID 文件，但进程不是 Java 应用，清理中..."
+                rm -f "\$PID_FILE"
+            fi
+        else
+            # PID 文件存在但进程已不存在，清理旧的 PID 文件
+            log_warn "检测到残留的 PID 文件，进程已停止，清理中..."
+            rm -f "\$PID_FILE"
+        fi
     fi
 }
 

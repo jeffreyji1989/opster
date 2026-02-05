@@ -52,7 +52,7 @@
 
     <!-- Dialog -->
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑服务器' : '新增服务器'">
-      <el-form :model="form" label-width="100px">
+      <el-form :model="form" label-width="140px">
         <el-form-item label="别名">
           <el-input v-model="form.alias" />
         </el-form-item>
@@ -73,6 +73,18 @@
             <el-option label="生产" value="prod" />
             <el-option label="测试" value="test" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="JAVA_HOME">
+          <el-input v-model="form.javaHome" placeholder="例如: /usr/lib/jvm/java-17-openjdk（可选）" />
+          <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+            该服务器上的 Java 安装路径，不填则使用系统默认配置或自动检测
+          </div>
+        </el-form-item>
+        <el-form-item label="MAVEN_HOME">
+          <el-input v-model="form.mavenHome" placeholder="例如: /usr/share/maven（可选）" />
+          <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+            该服务器上的 Maven 安装路径，不填则使用系统默认配置
+          </div>
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
@@ -107,6 +119,8 @@ const form = reactive({
   password: '',
   groupName: '',
   env: 'test',
+  javaHome: '',
+  mavenHome: '',
   status: 1
 })
 
@@ -154,6 +168,8 @@ const handleAdd = () => {
     password: '',
     groupName: '',
     env: 'test',
+    javaHome: '',
+    mavenHome: '',
     status: 1
   })
   dialogVisible.value = true
