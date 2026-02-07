@@ -1,5 +1,6 @@
 package com.opster.common;
 
+import cn.hutool.core.util.StrUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -27,33 +28,41 @@ public class LocalDeploymentLogger implements AutoCloseable {
     /**
      * 构造函数（带 WebSocket）
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param deployPath 本地部署根目录
      * @param wsSession WebSocket会话
      */
-    public LocalDeploymentLogger(String projectCode, String deployPath, WebSocketSession wsSession) {
+    public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath, WebSocketSession wsSession) {
         this.wsSession = wsSession;
-        this.logFile = createLogFile(projectCode, deployPath);
+        this.logFile = createLogFile(projectCode, serviceAlias, deployPath);
         this.writer = createWriter();
     }
 
     /**
      * 构造函数（不带 WebSocket - 后台异步模式）
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param deployPath 本地部署根目录
      */
-    public LocalDeploymentLogger(String projectCode, String deployPath) {
+    public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath) {
         this.wsSession = null;
-        this.logFile = createLogFile(projectCode, deployPath);
+        this.logFile = createLogFile(projectCode, serviceAlias, deployPath);
         this.writer = createWriter();
     }
 
     /**
      * 创建日志文件
+     * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
+     * @param deployPath 本地部署根目录
+     * @return 日志文件路径
      */
-    private Path createLogFile(String projectCode, String deployPath) {
+    private Path createLogFile(String projectCode, String serviceAlias, String deployPath) {
         try {
-            // 创建日志目录：{deployPath}/{projectCode}/p_log/
-            Path logDir = Paths.get(deployPath, projectCode, "p_log");
+            // 如果没有配置 serviceAlias，使用默认值
+            String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+            // 创建日志目录：{deployPath}/{projectCode}/{serviceAlias}/p_log/
+            Path logDir = Paths.get(deployPath, projectCode, alias, "p_log");
             Files.createDirectories(logDir);
 
             // 生成日志文件名：yyyyMMddHHmmss.log

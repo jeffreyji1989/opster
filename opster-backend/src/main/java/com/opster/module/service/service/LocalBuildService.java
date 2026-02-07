@@ -15,6 +15,7 @@ public interface LocalBuildService {
      * 执行本地打包（完整流程）
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param repositoryType 仓库类型（BACKEND/FRONTEND/ADMIN/MOBILE）
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
@@ -28,6 +29,7 @@ public interface LocalBuildService {
      * @throws Exception 打包过程中发生的异常
      */
     Path buildArtifact(String projectCode,
+                      String serviceAlias,
                       RepositoryType repositoryType,
                       String gitUrl,
                       String gitBranch,
@@ -42,6 +44,7 @@ public interface LocalBuildService {
      * 执行本地Maven打包
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
      * @param mavenCmd Maven构建命令
@@ -54,6 +57,7 @@ public interface LocalBuildService {
      * @throws Exception 打包过程中发生的异常
      */
     Path buildMavenArtifact(String projectCode,
+                           String serviceAlias,
                            String gitUrl,
                            String gitBranch,
                            String mavenCmd,
@@ -67,6 +71,7 @@ public interface LocalBuildService {
      * 执行本地npm打包
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param gitUrl Git仓库地址
      * @param gitBranch Git分支名称
      * @param buildCmd 构建命令（如：npm run build）
@@ -79,6 +84,7 @@ public interface LocalBuildService {
      * @throws Exception 打包过程中发生的异常
      */
     Path buildNpmArtifact(String projectCode,
+                         String serviceAlias,
                          String gitUrl,
                          String gitBranch,
                          String buildCmd,
@@ -92,23 +98,26 @@ public interface LocalBuildService {
      * 清理旧版本的打包产物
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param keepVersions 保留版本数量
      */
-    void cleanupOldArtifacts(String projectCode, int keepVersions);
+    void cleanupOldArtifacts(String projectCode, String serviceAlias, int keepVersions);
 
     /**
      * 获取项目源码目录路径
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @return 源码目录路径
      */
-    Path getSourceDir(String projectCode);
+    Path getSourceDir(String projectCode, String serviceAlias);
 
     /**
      * 获取项目产物归档目录路径
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @return 产物归档目录路径
      */
-    Path getArtifactsDir(String projectCode);
+    Path getArtifactsDir(String projectCode, String serviceAlias);
 }

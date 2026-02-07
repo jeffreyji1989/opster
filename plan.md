@@ -1,338 +1,295 @@
-# Node.js 版本管理实现方案
+# Opster 目录结构重构计划
 
-## 概述
+## 目标
 
-本方案为 Opster 系统添加 Node.js 版本管理功能，实现不同前端项目可以使用不同的 Node.js 版本进行构建，类似现有的 Maven 和 Java 版本管理机制。
+将服务发版的目录结构从 `{deployPath}/{projectCode}/` 优化为 `{deployPath}/{projectCode}/{serviceAlias}/`，实现更清晰的项目和服务隔离。
 
-## 核心目标
+## 最终目录结构
 
-1. **版本隔离**：每个前端服务可指定独立的 Node.js 版本
-2. **自动安装**：通过 nvm 自动安装缺失的 Node.js 版本
-3. **会话隔离**：不影响全局环境，仅在构建会话中生效
-4. **用户友好**：在服务管理界面方便配置和查看
+```
+{deployPath}/
+└── {projectCode}/                          # 项目编码（如：opster）
+    └── {serviceAlias}/                     # 服务别名（如：backend、frontend、admin）
+        ├── source/                         # 源码目录
+        │   └── {projectPath}/              # 可选，monorepo 子项目
+        ├── p_log/                          # 部署日志目录
+        ├── artifacts/                      # 构建产物目录
+        └── {projectPath}/                  # 可选，远程部署路径
+            ├── app.jar
+            ├── dist/
+            ├── bak/
+            └── logs/
+```
 
----
+## 变更内容
 
-## 一、数据库设计
+### 1. 数据库变更
 
-### 1.1 添加 Node.js 版本字段
-
-**SQL 文件**: `/opster-backend/db/changelog/20260131_add_nodejs_version_field.sql`
+**文件**: `opster-mysql-init.sql` 或新建 SQL 变更文件
 
 ```sql
--- 为服务表添加 Node.js 版本字段
-ALTER TABLE service ADD COLUMN node_version VARCHAR(20) DEFAULT NULL;
+-- 在 service 表添加 service_alias 字段
+ALTER TABLE service ADD COLUMN service_alias VARCHAR(100) COMMENT '服务别名（用于目录结构）';
 ```
 
-**字段说明**：
-- `node_version`: VARCHAR(20)，存储 Node.js 版本号（如 v18.17.0、v20.10.0）
-- 允许 NULL，前端项目需要配置，后端项目为 NULL
-- 默认值：NULL（未配置时使用系统默认 Node.js）
+### 2. 后端实体类
 
----
+**文件**: `opster-backend/src/main/java/com/opster/module/service/entity/AppService.java`
 
-## 二、后端实现
-
-### 2.1 配置文件修改
-
-**文件**: `/opster-backend/src/main/resources/application.yml`
-
-添加 Node.js 配置段：
-
-```yaml
-opster:
-  # ... 现有配置 ...
-  
-  # 新增：Node.js 配置
-  nodejs:
-    # nvm 安装目录
-    nvm-dir: ${NVM_DIR:-/Users/deffrey/.nvm}
-    # 是否自动安装缺失的 Node.js 版本
-    auto-install: true
-    # Node 版本缓存目录
-    cache-dir: ${opster.deploy-path}/nodejs-cache
-```
-
-### 2.2 配置类修改
-
-**文件**: `/opster-backend/src/main/java/com/opster/config/OpsterProperties.java`
-
-添加内部配置类：
+在第 130 行后添加：
 
 ```java
 /**
- * Node.js 配置
+ * 服务别名（用于构建部署目录结构）
+ * 例如：backend、frontend、admin
  */
-private NodejsConfig nodejs = new NodejsConfig();
+@Column(name = "service_alias", length = 100)
+private String serviceAlias;
+```
 
-@Data
-public static class NodejsConfig {
-    private String nvmDir;
-    private boolean autoInstall = true;
-    private String cacheDir;
+### 3. 本地日志目录
+
+**文件**: `opster-backend/src/main/java/com/opster/common/LocalDeploymentLogger.java`
+
+**修改位置**: 第 53-56 行的 `createLogFile()` 方法
+
+**当前代码**:
+```java
+private Path createLogFile(String projectCode, String deployPath) {
+    Path logDir = Paths.get(deployPath, projectCode, "p_log");
+    Files.createDirectories(logDir);
+    // ...
 }
 ```
 
-### 2.3 实体类修改
-
-**文件**: `/opster-backend/src/main/java/com/opster/module/service/entity/AppService.java`
-
-添加字段：
-
+**修改为**:
 ```java
-/**
- * Node.js 版本号（如：v18.17.0、v20.10.0）
- * 仅前端项目（repositoryType = 0 或 3）需要配置
- */
-@Column(name = "node_version")
-private String nodeVersion;
+private Path createLogFile(String projectCode, String serviceAlias, String deployPath) {
+    // 如果没有配置 serviceAlias，使用服务 ID 作为默认值
+    String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+    Path logDir = Paths.get(deployPath, projectCode, alias, "p_log");
+    Files.createDirectories(logDir);
+    // ...
+}
 ```
 
-### 2.4 核心服务实现
-
-**新建文件**: `/opster-backend/src/main/java/com/opster/module/service/service/NodeVersionService.java`
-
-**新建文件**: `/opster-backend/src/main/java/com/opster/module/service/service/impl/NodeVersionServiceImpl.java`
-
-主要功能：
-- `getInstalledVersions()`: 获取已安装的 Node.js 版本列表
-- `isVersionInstalled(String version)`: 检查版本是否已安装
-- `installVersion(String version)`: 使用 nvm 安装指定版本
-- `getVersionPath(String version)`: 获取版本的安装路径
-- `isValidVersion(String version)`: 验证版本号格式
-
-**新建文件**: `/opster-backend/src/main/java/com/opster/module/service/controller/NodeVersionController.java`
-
-API 接口：
-- `GET /nodejs/versions`: 获取已安装版本列表
-- `GET /nodejs/versions/{version}/check`: 检查版本是否已安装
-- `POST /nodejs/versions/{version}/install`: 安装指定版本
-
-### 2.5 本地构建服务修改
-
-**文件**: `/opster-backend/src/main/java/com/opster/module/service/service/impl/LocalBuildServiceImpl.java`
-
-修改要点：
-1. 在 `buildNpmArtifact` 方法中添加 Node 版本检测逻辑
-2. 修改 `executeNpmInstall` 和 `executeNpmBuild` 方法，添加环境变量设置
-3. 实现自动安装流程（检测到版本未安装时自动调用 nvm）
-
-**关键实现逻辑**：
-
+**同时修改构造函数** (第 33-47 行):
 ```java
-// 1. 检测配置的 Node 版本
-String nodeVersion = service.getNodeVersion();
+// 带 WebSocket 的构造函数
+public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath, WebSocketSession wsSession)
 
-// 2. 验证版本是否已安装
-if (!nodeVersionService.isVersionInstalled(nodeVersion)) {
-    // 自动安装
-    nodeVersionService.installVersion(nodeVersion);
+// 不带 WebSocket 的构造函数
+public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath)
+```
+
+### 4. 本地构建目录
+
+**文件**: `opster-backend/src/main/java/com/opster/module/service/service/impl/LocalBuildServiceImpl.java`
+
+**修改位置**: 源码目录和构建产物目录的创建方法
+
+**当前代码** (约第 348-366 行):
+```java
+private Path getUniqueSourceDir(String projectCode, String gitUrl) {
+    String deployPath = opsterProperties.getDeployPath();
+    return Paths.get(deployPath, projectCode, "source");
 }
 
-// 3. 获取版本路径并设置环境变量
-String nodePath = nodeVersionService.getVersionPath(nodeVersion);
-String[] envVars = {"PATH=" + nodePath + "/bin:" + systemPath};
-
-// 4. 使用指定版本执行命令
-LocalCommandUtils.executeCommand(projectRoot, "npm install", wsSession, envVars, logger);
+public Path getArtifactsDir(String projectCode) {
+    String deployPath = opsterProperties.getDeployPath();
+    return Paths.get(deployPath, projectCode, "artifacts");
+}
 ```
 
----
+**修改为**:
+```java
+private Path getUniqueSourceDir(String projectCode, String serviceAlias, String gitUrl) {
+    String deployPath = opsterProperties.getDeployPath();
+    String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+    return Paths.get(deployPath, projectCode, alias, "source");
+}
 
-## 三、前端界面实现
+public Path getArtifactsDir(String projectCode, String serviceAlias) {
+    String deployPath = opsterProperties.getDeployPath();
+    String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+    return Paths.get(deployPath, projectCode, alias, "artifacts");
+}
+```
 
-### 3.1 服务管理界面修改
+**同时修改**:
+- `buildArtifact()` 方法 - 添加 serviceAlias 参数并传递
+- `cleanupOldArtifacts()` 方法 - 添加 serviceAlias 参数
 
-**文件**: `/opster-frontend/src/views/Service.vue`
+### 5. 远程部署目录
 
-**修改点**：
-1. 在表格中添加"Node版本"列（仅前端项目显示）
-2. 在编辑表单中添加 Node.js 版本选择器
-3. 添加响应式数据和加载逻辑
+**文件**: `opster-backend/src/main/java/com/opster/module/service/service/impl/DeploymentOrchestrationServiceImpl.java`
 
-**表格列添加**：
+**修改位置**: 第 556-589 行的 `buildRemoteDir()` 方法
+
+**当前代码**:
+```java
+private String buildRemoteDir(Project project, AppService service) {
+    String projectCode = project.getProjectCode();
+    String deployPath = project.getDeployPath();
+
+    String normalizedBasePath = deployPath.trim().replaceAll("/+$", "");
+    String normalizedProjectCode = projectCode.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+
+    String baseDir = normalizedBasePath + "/" + normalizedProjectCode;
+
+    if (StrUtil.isNotBlank(service.getProjectPath())) {
+        String normalizedProjectPath = service.getProjectPath().trim()
+                .replaceAll("^/+", "")
+                .replaceAll("/+$", "");
+        return baseDir + "/" + normalizedProjectPath;
+    }
+
+    return baseDir;
+}
+```
+
+**修改为**:
+```java
+private String buildRemoteDir(Project project, AppService service) {
+    String projectCode = project.getProjectCode();
+    String deployPath = project.getDeployPath();
+
+    // 获取服务别名，如果未配置则使用服务 ID
+    String serviceAlias = service.getServiceAlias();
+    if (StrUtil.isBlank(serviceAlias)) {
+        serviceAlias = "service_" + service.getId();
+    }
+
+    // 标准化路径
+    String normalizedBasePath = deployPath.trim().replaceAll("/+$", "");
+    String normalizedProjectCode = projectCode.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+    String normalizedServiceAlias = serviceAlias.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+
+    // 构建基础路径：{deployPath}/{projectCode}/{serviceAlias}
+    String baseDir = normalizedBasePath + "/" + normalizedProjectCode + "/" + normalizedServiceAlias;
+
+    // 如果配置了项目路径，则追加
+    if (StrUtil.isNotBlank(service.getProjectPath())) {
+        String normalizedProjectPath = service.getProjectPath().trim()
+                .replaceAll("^/+", "")
+                .replaceAll("/+$", "");
+        return baseDir + "/" + normalizedProjectPath;
+    }
+
+    return baseDir;
+}
+```
+
+### 6. 部署流程调用
+
+**文件**: `opster-backend/src/main/java/com/opster/module/service/service/impl/DeploymentOrchestrationServiceImpl.java`
+
+**修改位置**: 所有创建 `LocalDeploymentLogger` 和调用 `LocalBuildService` 方法的地方
+
+**需要修改的方法**:
+- `executeDeployment()` - 第 91-263 行
+- `doExecuteDeployment()` - 第 1202-1337 行
+- `rollbackToSpecificVersion()` - 第 400-545 行
+- `doRollbackToSpecificVersion()` - 第 1343-1466 行
+
+**修改示例**:
+```java
+// 修改前
+logger = new LocalDeploymentLogger(projectCode, opsterProperties.getDeployPath(), wsSession);
+Path artifact = localBuildService.buildArtifact(projectCode, ...);
+
+// 修改后
+logger = new LocalDeploymentLogger(projectCode, service.getServiceAlias(), opsterProperties.getDeployPath(), wsSession);
+Path artifact = localBuildService.buildArtifact(projectCode, service.getServiceAlias(), ...);
+```
+
+### 7. 前端表单
+
+**文件**: `opster-frontend/src/views/Service.vue`
+
+**修改位置**: 服务编辑表单，在项目名称和环境之间添加服务别名输入框
+
+在第 145 行附近添加：
+
 ```vue
-<el-table-column label="Node版本" width="120">
-  <template #default="scope">
-    <span v-if="scope.row.repositoryType === 0 || scope.row.repositoryType === 3">
-      {{ scope.row.nodeVersion || '系统默认' }}
+<el-col :span="3">
+  <el-form-item label="服务别名" label-width="70px">
+    <el-input v-model="item.serviceAlias" placeholder="如：backend" />
+    <span style="font-size: 12px; color: #999;">
+      用于构建部署目录
     </span>
-    <span v-else style="color: #ccc;">-</span>
-  </template>
-</el-table-column>
+  </el-form-item>
+</el-col>
 ```
 
-**表单选择器添加**：
-```vue
-<el-select v-model="item.nodeVersion" placeholder="选择Node.js版本" filterable allow-create>
-  <el-option label="系统默认" value="" />
-  <el-option v-for="version in installedNodeVersions" :key="version" :label="version" :value="version" />
-</el-select>
-```
+**同时修改**:
+- `handleAdd()` 方法 - 新增时初始化 serviceAlias
+- 数据请求和保存逻辑 - 确保字段正确传递
 
----
+## 实施步骤
 
-## 四、自动化逻辑
+### 第一阶段：数据库和实体类
+1. 执行 SQL 添加 `service_alias` 字段
+2. 修改 `AppService.java` 实体类
 
-### 4.1 构建前自动检测
+### 第二阶段：本地目录结构
+1. 修改 `LocalDeploymentLogger.java` 日志目录
+2. 修改 `LocalBuildServiceImpl.java` 源码和产物目录
 
-```
-开始构建
-  ↓
-检查 service.nodeVersion
-  ↓
-版本是否配置？
-  ├─ 否 → 使用系统默认 Node.js
-  └─ 是 → 检查版本是否已安装
-         ├─ 是 → 获取版本路径 → 设置环境变量 → 继续
-         └─ 否 → 自动安装开启？
-                  ├─ 是 → nvm install → 验证 → 继续
-                  └─ 否 → 抛出异常，构建失败
-```
+### 第三阶段：部署流程
+1. 修改 `DeploymentOrchestrationServiceImpl.java` 远程目录构建
+2. 更新所有调用方法传递 serviceAlias 参数
 
-### 4.2 环境变量设置
+### 第四阶段：前端界面
+1. 修改 `Service.vue` 添加服务别名输入框
 
-通过修改 `PATH` 环境变量实现版本隔离：
+### 第五阶段：测试验证
+1. 测试新增服务功能
+2. 测试发版流程
+3. 验证目录结构符合预期
+4. 测试回退功能
 
-```java
-String nodePath = nodeVersionService.getVersionPath(nodeVersion);
-String[] envVars = {
-    "PATH=" + nodePath + "/bin:" + systemPath
-};
-```
+## 关键文件清单
 
-这样在构建过程中，npm 会优先使用指定版本的 Node.js。
+### 后端
+- `opster-backend/src/main/java/com/opster/module/service/entity/AppService.java`
+- `opster-backend/src/main/java/com/opster/common/LocalDeploymentLogger.java`
+- `opster-backend/src/main/java/com/opster/module/service/service/impl/LocalBuildServiceImpl.java`
+- `opster-backend/src/main/java/com/opster/module/service/service/impl/DeploymentOrchestrationServiceImpl.java`
 
----
+### 前端
+- `opster-frontend/src/views/Service.vue`
 
-## 五、关键文件清单
+### 数据库
+- `opster-mysql-init.sql` 或新建变更文件
 
-### 5.1 需要修改的文件
+## 验证标准
 
-**Java 文件**：
-- `/opster-backend/src/main/java/com/opster/config/OpsterProperties.java` - 添加配置类
-- `/opster-backend/src/main/java/com/opster/module/service/entity/AppService.java` - 添加字段
-- `/opster-backend/src/main/java/com/opster/module/service/service/impl/LocalBuildServiceImpl.java` - 添加版本管理逻辑
+### 功能验证
+- [ ] 新增服务时可以设置服务别名
+- [ ] 发版后本地目录结构正确：`{deployPath}/{projectCode}/{serviceAlias}/{source,p_log,artifacts}/`
+- [ ] 发版后远程目录结构正确：`{deployPath}/{projectCode}/{serviceAlias}/{projectPath}/`
+- [ ] 未配置 serviceAlias 时使用默认值（service_{id}）
+- [ ] 保留了 projectPath 功能（monorepo 场景）
+- [ ] 部署日志正确记录在 `p_log` 目录
 
-**Vue 文件**：
-- `/opster-frontend/src/views/Service.vue` - 添加版本选择器和显示
+### 回归测试
+- [ ] 现有服务发版功能正常
+- [ ] 版本回退功能正常
+- [ ] 构建产物清理功能正常
+- [ ] 部署记录查看正常
 
-**配置文件**：
-- `/opster-backend/src/main/resources/application.yml` - 添加 Node.js 配置
+## 风险和注意事项
 
-### 5.2 需要新建的文件
+1. **数据迁移**: 现有服务的 serviceAlias 为空，需要处理默认值逻辑
+2. **目录迁移**: 旧的部署目录不会自动迁移，需要保留向后兼容或手动迁移
+3. **路径长度**: 确保 serviceAlias 不会导致路径过长
+4. **特殊字符**: serviceAlias 应该过滤特殊字符（如空格、斜杠等）
+5. **唯一性**: 同一项目下的服务别名建议唯一，但不是强制要求
 
-**Java 文件**：
-- `/opster-backend/src/main/java/com/opster/module/service/service/NodeVersionService.java` - 服务接口
-- `/opster-backend/src/main/java/com/opster/module/service/service/impl/NodeVersionServiceImpl.java` - 服务实现
-- `/opster-backend/src/main/java/com/opster/module/service/controller/NodeVersionController.java` - API 控制器
+## 后续优化建议
 
-**SQL 文件**：
-- `/opster-backend/db/changelog/20260131_add_nodejs_version_field.sql` - 数据库变更
-
----
-
-## 六、实施步骤
-
-### 阶段 1：数据库和配置（1小时）
-- 创建 SQL 变更文件
-- 修改 application.yml
-- 修改 OpsterProperties.java
-
-### 阶段 2：后端核心服务（3小时）
-- 创建 NodeVersionService 接口和实现
-- 实现 nvm 集成逻辑
-- 创建 NodeVersionController API
-- 修改 LocalBuildServiceImpl
-
-### 阶段 3：前端界面（2小时）
-- 修改 Service.vue 添加版本选择器
-- 添加版本列表加载逻辑
-- 测试界面交互
-
-### 阶段 4：测试验证（2小时）
-- 测试版本检测功能
-- 测试自动安装功能
-- 测试前端项目构建
-- 测试错误场景
-
-### 阶段 5：文档和优化（1小时）
-- 编写用户文档
-- 添加代码注释
-- 性能优化
-
-**总计工时**：约 9 小时
-
----
-
-## 七、注意事项
-
-1. **nvm 依赖**：
-   - 系统必须先安装 nvm（Node Version Manager）
-   - 确保 `opster.nodejs.nvm-dir` 配置正确
-
-2. **权限问题**：
-   - nvm 安装目录需要读写权限
-   - 系统级 nvm 可能需要 sudo 权限
-
-3. **跨平台支持**：
-   - 当前方案基于 Unix/Linux/macOS
-   - Windows 需要使用 nvm-windows，路径不同
-
-4. **版本格式**：
-   - 版本号必须符合 v*.*.* 格式（如 v18.17.0）
-   - 使用正则表达式验证，防止路径穿越攻击
-
-5. **性能考虑**：
-   - 版本检测不应阻塞构建流程
-   - 大型项目建议异步安装版本
-
----
-
-## 八、示例场景
-
-### 场景 1：新项目配置 Node 版本
-
-1. 新增前端服务（Vue 3 项目）
-2. 在"Node版本"下拉框选择 v18.17.0
-3. 保存配置
-4. 执行发版，系统自动使用 v18.17.0 进行构建
-
-### 场景 2：自动安装缺失版本
-
-1. 配置 v22.0.0（系统中未安装）
-2. 执行发版
-3. 系统检测到版本未安装
-4. 自动执行 `nvm install v22.0.0`
-5. 安装成功后继续构建
-
-### 场景 3：版本切换
-
-1. 编辑服务配置
-2. 修改 Node 版本从 v16.20.0 改为 v20.10.0
-3. 保存配置
-4. 下次发版自动使用新版本
-
----
-
-## 附录：nvm 常用命令
-
-```bash
-# 列出已安装版本
-nvm ls
-
-# 安装指定版本
-nvm install v18.17.0
-
-# 切换版本
-nvm use v18.17.0
-
-# 设置默认版本
-nvm alias default v18.17.0
-
-# 查看远程可用版本
-nvm ls-remote
-
-# 卸载版本
-nvm uninstall v18.17.0
-```
+1. 添加 serviceAlias 的唯一性校验（同一 projectCode 下）
+2. 添加 serviceAlias 的格式校验（字母数字下划线）
+3. 提供目录迁移工具，将旧目录结构迁移到新结构
+4. 在前端添加目录预览功能，显示完整的部署路径

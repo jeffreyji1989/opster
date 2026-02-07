@@ -64,6 +64,13 @@
         </template>
       </el-table-column>
       <el-table-column prop="env" label="环境" width="80" />
+      <el-table-column label="服务别名" width="100">
+        <template #default="scope">
+          <el-tag type="info" size="small">
+            {{ extractServiceAliasFromGitUrl(scope.row.repoGitUrl) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="gitBranch" label="分支" width="100" />
       <el-table-column label="运行时版本" width="120">
@@ -617,6 +624,51 @@ const getServerName = (id) => {
   return s ? s.alias : id
 }
 
+// 从 Git URL 提取服务别名（仓库名）
+const extractServiceAliasFromGitUrl = (gitUrl) => {
+  if (!gitUrl) return 'service'
+
+  try {
+    let repoName = ''
+
+    // 处理 SSH 格式：git@github.com:xxx/repo.git
+    if (gitUrl.startsWith('git@')) {
+      const colonIndex = gitUrl.indexOf(':')
+      if (colonIndex > 0) {
+        const pathPart = gitUrl.substring(colonIndex + 1)
+        const parts = pathPart.split('/')
+        repoName = parts[parts.length - 1]
+      }
+    }
+    // 处理 HTTPS/HTTP 格式
+    else {
+      // 移除协议部分
+      let urlWithoutProtocol = gitUrl.replace(/^https?:\/\//, '')
+      // 移除认证信息（如：username:password@）
+      const atIndex = urlWithoutProtocol.indexOf('@')
+      if (atIndex > 0) {
+        urlWithoutProtocol = urlWithoutProtocol.substring(atIndex + 1)
+      }
+      // 按 / 分割，获取最后一部分
+      const parts = urlWithoutProtocol.split('/')
+      repoName = parts[parts.length - 1]
+    }
+
+    // 移除 .git 后缀
+    if (repoName.endsWith('.git')) {
+      repoName = repoName.substring(0, repoName.length - 4)
+    }
+
+    // 移除其他可能的特殊字符
+    repoName = repoName.replace(/[^a-zA-Z0-9_-]/g, '')
+
+    return repoName || 'service'
+  } catch (e) {
+    console.error('从 Git URL 提取服务别名失败:', gitUrl, e)
+    return 'service'
+  }
+}
+
 // 计算完整部署路径（用于表格显示）
 const getFullDeployPath = (row) => {
   const project = projects.value.find(p => p.id === row.projectId)
@@ -625,14 +677,20 @@ const getFullDeployPath = (row) => {
   // deployPath 现在从项目配置获取
   const deployPath = project.deployPath || ''
   const projectCode = project.projectCode || ''
+  // 从 Git URL 自动提取服务别名
+  const gitUrl = row.repoGitUrl || ''
+  const serviceAlias = extractServiceAliasFromGitUrl(gitUrl)
   const projectPath = row.projectPath || ''
 
-  // 构建路径：{deployPath}/{projectCode}/{projectPath}
+  // 构建路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
   let fullPath = deployPath
   if (projectCode) {
     fullPath += '/' + projectCode
-    if (projectPath) {
-      fullPath += '/' + projectPath
+    if (serviceAlias) {
+      fullPath += '/' + serviceAlias
+      if (projectPath) {
+        fullPath += '/' + projectPath
+      }
     }
   }
   return fullPath
@@ -646,14 +704,20 @@ const getComputedDeployPath = (item) => {
   // deployPath 现在从项目配置获取
   const deployPath = project.deployPath || ''
   const projectCode = project.projectCode || ''
+  // 从 Git URL 自动提取服务别名
+  const gitUrl = item.repoGitUrl || ''
+  const serviceAlias = extractServiceAliasFromGitUrl(gitUrl)
   const projectPath = item.projectPath || ''
 
-  // 构建路径：{deployPath}/{projectCode}/{projectPath}
+  // 构建路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
   let fullPath = deployPath
   if (projectCode) {
     fullPath += '/' + projectCode
-    if (projectPath) {
-      fullPath += '/' + projectPath
+    if (serviceAlias) {
+      fullPath += '/' + serviceAlias
+      if (projectPath) {
+        fullPath += '/' + projectPath
+      }
     }
   }
   return fullPath
@@ -845,10 +909,8 @@ const handleAction = (row, action) => {
     deployProgress.value = 0 // 重置进度
     resultVisible.value = true
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.hostname
-    const port = '8080'
-    const wsUrl = `${protocol}//${host}:${port}/ws/exec/${row.id}/${action}`
+    // 使用环境变量配置的 WebSocket 地址
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/exec/${row.id}/${action}`
 
     try {
       const socket = new WebSocket(wsUrl)
@@ -921,10 +983,8 @@ watch(resultVisible, (val) => {
 const handleLog = (row) => {
   logContent.value = '正在连接 WebSocket...'
   logVisible.value = true
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.hostname
-  const port = '8080'
-  const wsUrl = `${protocol}//${host}:${port}/ws/log/${row.id}`
+  // 使用环境变量配置的 WebSocket 地址
+  const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/log/${row.id}`
   try {
     const socket = new WebSocket(wsUrl)
     socket.onopen = () => logContent.value = '>>> 连接成功，正在获取日志...\n'
@@ -954,10 +1014,8 @@ const handleRollback = (row) => {
     resultContent.value = `正在连接 WebSocket 执行版本回退...\n`
     resultStatus.value = 'success'
     resultVisible.value = true
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.hostname
-    const port = '8080'
-    const wsUrl = `${protocol}//${host}:${port}/ws/exec/${row.id}/rollback`
+    // 使用环境变量配置的 WebSocket 地址
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/exec/${row.id}/rollback`
     try {
       const socket = new WebSocket(wsUrl)
       socket.onopen = () => resultContent.value += '>>> 连接成功，开始执行...\n'
@@ -1127,10 +1185,8 @@ const handleTerminal = (row) => {
     initTerminal()
 
     // 创建 WebSocket 连接
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.hostname
-    const port = '8080'
-    const wsUrl = `${protocol}//${host}:${port}/ws/terminal/${row.id}`
+    // 使用环境变量配置的 WebSocket 地址
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/terminal/${row.id}`
 
     try {
       terminalSocket.value = new WebSocket(wsUrl)

@@ -127,4 +127,12 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "node_version", length = 20)
     private String nodeVersion;
+
+    /**
+     * 服务别名（用于构建部署目录结构）
+     * 例如：backend、frontend、admin
+     * 用于形成目录结构：{deployPath}/{projectCode}/{serviceAlias}/
+     */
+    @Column(name = "service_alias", length = 100)
+    private String serviceAlias;
 }

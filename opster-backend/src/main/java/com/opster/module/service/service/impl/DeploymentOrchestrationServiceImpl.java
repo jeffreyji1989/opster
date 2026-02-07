@@ -102,9 +102,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             Server server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
-            // 2. 创建本地日志记录器
+            // 2. 获取 Git URL（提前获取，用于提取服务别名）
+            String gitUrl = determineGitUrl(service, project);
             String projectCode = project.getProjectCode();
-            logger = new LocalDeploymentLogger(projectCode, opsterProperties.getDeployPath(), wsSession);
+
+            // 3. 创建本地日志记录器
+            logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath(), wsSession);
 
             // 3. 获取部署锁
             logger.log(">>> 获取部署锁...");
@@ -130,13 +133,13 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // 5. 本地打包
             logger.log(">>> 开始本地打包...");
             logger.log(">>> 提示: 前端项目打包可能需要几分钟，请耐心等待...");
-            String gitUrl = determineGitUrl(service, project);
             String projectPath = determineProjectPath(service, project);
             String gitUsername = determineGitUsername(service, project);
             String gitPassword = determineGitPassword(service, project);
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
+                extractServiceAliasFromGitUrl(gitUrl),
                 service.getRepositoryType() != null ?
                     RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND,
                 gitUrl,
@@ -220,7 +223,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 13. 清理旧版本
             int keepVersions = 5; // 默认保留5个版本
-            localBuildService.cleanupOldArtifacts(projectCode, keepVersions);
+            localBuildService.cleanupOldArtifacts(projectCode, extractServiceAliasFromGitUrl(gitUrl), keepVersions);
 
         } catch (Exception e) {
             log.error("Deployment failed for service: {}", serviceId, e);
@@ -425,9 +428,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             Server server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
-            // 3. 创建本地日志记录器
+            // 3. 获取 Git URL（提前获取，用于提取服务别名）
+            String gitUrl = determineGitUrl(service, project);
             String projectCode = project.getProjectCode();
-            logger = new LocalDeploymentLogger(projectCode, opsterProperties.getDeployPath(), wsSession);
+
+            // 4. 创建本地日志记录器
+            logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath(), wsSession);
 
             // 4. 获取部署锁
             logger.log(">>> 获取部署锁...");
@@ -550,7 +556,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
      *
      * @param project 项目配置
      * @param service 服务配置
-     * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
+     * @return 远程部署目录路径，格式：{deployPath}/{projectCode}/{serviceAlias} 或 {deployPath}/{projectCode}/{serviceAlias}/{projectPath}
      * @throws IllegalArgumentException 如果参数为空或无效
      */
     private String buildRemoteDir(Project project, AppService service) {
@@ -570,12 +576,17 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             throw new IllegalArgumentException("部署路径不能为空");
         }
 
+        // 从 Git URL 自动提取服务别名（仓库名）
+        String gitUrl = determineGitUrl(service, project);
+        String serviceAlias = extractServiceAliasFromGitUrl(gitUrl);
+
         // 标准化路径：去除首尾空格，确保不以斜杠结尾
         String normalizedBasePath = deployPath.trim().replaceAll("/+$", "");
         String normalizedProjectCode = projectCode.trim().replaceAll("^/+", "").replaceAll("/+$", "");
+        String normalizedServiceAlias = serviceAlias.trim().replaceAll("^/+", "").replaceAll("/+$", "");
 
-        // 构建基础路径
-        String baseDir = normalizedBasePath + "/" + normalizedProjectCode;
+        // 构建基础路径：{deployPath}/{projectCode}/{serviceAlias}
+        String baseDir = normalizedBasePath + "/" + normalizedProjectCode + "/" + normalizedServiceAlias;
 
         // 如果配置了项目路径，则追加到基础路径后
         if (StrUtil.isNotBlank(service.getProjectPath())) {
@@ -610,6 +621,64 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         }
 
         throw new RuntimeException("未找到Git仓库地址");
+    }
+
+    /**
+     * 从 Git URL 提取服务别名（仓库名）
+     * 支持多种 Git URL 格式：
+     * - HTTPS: https://github.com/xxx/opster-backend.git → opster-backend
+     * - HTTP: http://git.example.com/project/frontend.git → frontend
+     * - SSH: git@github.com:xxx/repo.git → repo
+     *
+     * @param gitUrl Git 仓库地址
+     * @return 服务别名（仓库名，不含 .git 后缀）
+     */
+    private String extractServiceAliasFromGitUrl(String gitUrl) {
+        if (StrUtil.isBlank(gitUrl)) {
+            return "service";
+        }
+
+        try {
+            String repoName = "";
+
+            // 处理 SSH 格式：git@github.com:xxx/repo.git
+            if (gitUrl.startsWith("git@")) {
+                int colonIndex = gitUrl.indexOf(':');
+                if (colonIndex > 0) {
+                    String pathPart = gitUrl.substring(colonIndex + 1);
+                    // 获取最后一部分（仓库名）
+                    String[] parts = pathPart.split("/");
+                    repoName = parts[parts.length - 1];
+                }
+            }
+            // 处理 HTTPS/HTTP 格式
+            else {
+                // 移除协议部分
+                String urlWithoutProtocol = gitUrl.replaceFirst("^https?://", "");
+                // 移除认证信息（如：username:password@）
+                int atIndex = urlWithoutProtocol.indexOf('@');
+                if (atIndex > 0) {
+                    urlWithoutProtocol = urlWithoutProtocol.substring(atIndex + 1);
+                }
+                // 按 / 分割，获取最后一部分
+                String[] parts = urlWithoutProtocol.split("/");
+                repoName = parts[parts.length - 1];
+            }
+
+            // 移除 .git 后缀
+            if (repoName.endsWith(".git")) {
+                repoName = repoName.substring(0, repoName.length() - 4);
+            }
+
+            // 移除其他可能的特殊字符
+            repoName = repoName.replaceAll("[^a-zA-Z0-9_-]", "");
+
+            return StrUtil.isBlank(repoName) ? "service" : repoName;
+
+        } catch (Exception e) {
+            log.warn("从 Git URL 提取服务别名失败: {}, 使用默认值", gitUrl, e);
+            return "service";
+        }
     }
 
     /**
@@ -1244,6 +1313,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
+                extractServiceAliasFromGitUrl(gitUrl),
                 service.getRepositoryType() != null ?
                     RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND,
                 gitUrl,
@@ -1314,7 +1384,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             deploymentRecordService.update(deploymentRecord);
 
             // 12. 清理旧版本
-            localBuildService.cleanupOldArtifacts(projectCode, 5);
+            localBuildService.cleanupOldArtifacts(projectCode, extractServiceAliasFromGitUrl(gitUrl), 5);
 
             return deploymentRecord.getId();
 
@@ -1474,9 +1544,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             .orElseThrow(() -> new RuntimeException("项目不存在: " + service.getProjectId()));
 
         String projectCode = project.getProjectCode();
+        String gitUrl = determineGitUrl(service, project);
 
         // 创建本地日志记录器（无 WebSocket）
-        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, opsterProperties.getDeployPath())) {
+        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
             return doExecuteDeployment(serviceId, logger);
         } catch (Exception e) {
             log.error("Async deployment failed for service: {}", serviceId, e);
@@ -1499,9 +1570,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             .orElseThrow(() -> new RuntimeException("项目不存在: " + service.getProjectId()));
 
         String projectCode = project.getProjectCode();
+        String gitUrl = determineGitUrl(service, project);
 
         // 创建本地日志记录器（无 WebSocket）
-        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, opsterProperties.getDeployPath())) {
+        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
             return doRollbackToSpecificVersion(recordId, logger);
         } catch (Exception e) {
             log.error("Async rollback failed for record: {}", recordId, e);

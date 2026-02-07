@@ -154,15 +154,8 @@ const startMonitoring = (serverId) => {
     ws.close()
   }
 
-  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  const host = window.location.host
-  // Note: Backend is on 8080, Frontend 5173. Assuming proxy or direct call.
-  // Using direct port 8080 for dev if proxy not set up for WS, but let's try relative first if proxy exists.
-  // If Vite proxy handles /ws, good.
-  
-  // Hardcoding 8080 for WS in dev environment usually required if vite proxy doesn't upgrade WS
-  // Let's assume typical setup:
-  const wsUrl = `ws://localhost:8080/ws/monitor`
+  // 使用环境变量配置的 WebSocket 地址
+  const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/monitor`
   
   ws = new WebSocket(wsUrl)
   

@@ -115,12 +115,9 @@ const resetForm = () => {
 const viewLogs = (id) => {
   logContent.value = '正在连接 WebSocket...'
   logDialogVisible.value = true
-  
-  // 使用当前主机进行 WebSocket 连接
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = window.location.hostname
-  const port = '8080' // 后端端口
-  const wsUrl = `${protocol}//${host}:${port}/ws/log/deployment/${id}`
+
+  // 使用环境变量配置的 WebSocket 地址
+  const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/log/deployment/${id}`
   
   try {
     const socket = new WebSocket(wsUrl)

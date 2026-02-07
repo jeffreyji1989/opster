@@ -41,6 +41,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Override
     public Path buildArtifact(String projectCode,
+                             String serviceAlias,
                              RepositoryType repositoryType,
                              String gitUrl,
                              String gitBranch,
@@ -54,15 +55,16 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         if (repositoryType == RepositoryType.FRONTEND ||
             repositoryType == RepositoryType.MOBILE) {
             // 前端或移动端项目使用npm构建，传递 nodeVersion 参数
-            return buildNpmArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
+            return buildNpmArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
         } else {
             // 后端或管理后台项目使用Maven构建，nodeVersion 参数作为 JDK 版本传递
-            return buildMavenArtifact(projectCode, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
+            return buildMavenArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
         }
     }
 
     @Override
     public Path buildMavenArtifact(String projectCode,
+                                   String serviceAlias,
                                    String gitUrl,
                                    String gitBranch,
                                    String mavenCmd,
@@ -74,7 +76,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
-        Path logsDir = getLogsDir(projectCode);
+        Path logsDir = getLogsDir(projectCode, serviceAlias);
         LocalBuildLogger logger = LocalBuildLogger.create(
             logsDir.toString(),
             "build-maven-" + timestamp + ".log",
@@ -84,6 +86,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         try {
             logger.info("=== 开始Maven项目打包 ===");
             logger.info("项目编码: " + projectCode);
+            logger.info("服务别名: " + serviceAlias);
             logger.info("Git地址: " + gitUrl);
             logger.info("Git分支: " + gitBranch);
             logger.info("Maven命令: " + mavenCmd);
@@ -92,7 +95,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             }
 
             // 2. 准备工作目录
-            Path sourceDir = getUniqueSourceDir(projectCode, gitUrl);
+            Path sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
             LocalCommandUtils.createDirectories(sourceDir);
 
             // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
@@ -139,7 +142,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             logger.info("打包产物: " + jarFile);
 
             // 7. 归档产物（保持原始文件名，添加时间戳前缀避免冲突）
-            Path artifactsDir = getArtifactsDir(projectCode);
+            Path artifactsDir = getArtifactsDir(projectCode, serviceAlias);
             LocalCommandUtils.createDirectories(artifactsDir);
 
             String originalJarName = jarFile.getFileName().toString();
@@ -160,6 +163,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Override
     public Path buildNpmArtifact(String projectCode,
+                                String serviceAlias,
                                 String gitUrl,
                                 String gitBranch,
                                 String buildCmd,
@@ -171,7 +175,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
-        Path logsDir = getLogsDir(projectCode);
+        Path logsDir = getLogsDir(projectCode, serviceAlias);
         LocalBuildLogger logger = LocalBuildLogger.create(
             logsDir.toString(),
             "build-npm-" + timestamp + ".log",
@@ -181,12 +185,13 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         try {
             logger.info("=== 开始npm项目打包 ===");
             logger.info("项目编码: " + projectCode);
+            logger.info("服务别名: " + serviceAlias);
             logger.info("Git地址: " + gitUrl);
             logger.info("Git分支: " + gitBranch);
             logger.info("构建命令: " + buildCmd);
 
             // 2. 准备工作目录
-            Path sourceDir = getUniqueSourceDir(projectCode, gitUrl);
+            Path sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
             LocalCommandUtils.createDirectories(sourceDir);
 
             // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
@@ -277,7 +282,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             logger.info("打包产物目录: " + distDir);
 
             // 8. 压缩dist目录为zip
-            Path artifactsDir = getArtifactsDir(projectCode);
+            Path artifactsDir = getArtifactsDir(projectCode, serviceAlias);
             LocalCommandUtils.createDirectories(artifactsDir);
 
             String artifactName = "app-frontend-" + timestamp + ".zip";
@@ -296,9 +301,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     @Override
-    public void cleanupOldArtifacts(String projectCode, int keepVersions) {
+    public void cleanupOldArtifacts(String projectCode, String serviceAlias, int keepVersions) {
         try {
-            Path artifactsDir = getArtifactsDir(projectCode);
+            Path artifactsDir = getArtifactsDir(projectCode, serviceAlias);
             if (!LocalCommandUtils.directoryExists(artifactsDir)) {
                 return;
             }
@@ -332,37 +337,49 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     @Override
-    public Path getSourceDir(String projectCode) {
+    public Path getSourceDir(String projectCode, String serviceAlias) {
+        // 如果没有配置 serviceAlias，使用默认值
+        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "source");
+        return Paths.get(deployPath, projectCode, alias, "source");
     }
 
     /**
      * 获取源码目录（统一使用 source 目录）
-     * 同一项目的不同服务通过 projectPath 字段区分子目录
+     * 同一项目的不同服务通过 serviceAlias + projectPath 字段区分子目录
      *
      * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
      * @param gitUrl Git 仓库地址（不再使用，保留参数兼容性）
      * @return 源码目录
      */
-    private Path getUniqueSourceDir(String projectCode, String gitUrl) {
-        // 统一使用 source 目录，通过 projectPath 字段区分不同子项目
+    private Path getUniqueSourceDir(String projectCode, String serviceAlias, String gitUrl) {
+        // 如果没有配置 serviceAlias，使用默认值
+        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+        // 统一使用 source 目录，通过 serviceAlias + projectPath 字段区分不同子项目
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "source");
+        return Paths.get(deployPath, projectCode, alias, "source");
     }
 
     @Override
-    public Path getArtifactsDir(String projectCode) {
+    public Path getArtifactsDir(String projectCode, String serviceAlias) {
+        // 如果没有配置 serviceAlias，使用默认值
+        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "artifacts");
+        return Paths.get(deployPath, projectCode, alias, "artifacts");
     }
 
     /**
      * 获取日志目录
+     * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
+     * @return 日志目录
      */
-    private Path getLogsDir(String projectCode) {
+    private Path getLogsDir(String projectCode, String serviceAlias) {
+        // 如果没有配置 serviceAlias，使用默认值
+        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "logs");
+        return Paths.get(deployPath, projectCode, alias, "logs");
     }
 
     /**
@@ -463,7 +480,17 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             return sourceDir;
         }
 
-        // 递归查找子目录
+        // 检查是否存在与当前目录同名的子目录（常见于 monorepo 结构）
+        // 例如：sourceDir = /path/to/backend，检查 /path/to/backend/backend 是否存在
+        Path subDirWithSameName = sourceDir.resolve(sourceDir.getFileName().toString());
+        if (Files.exists(subDirWithSameName)) {
+            Path subPomXml = subDirWithSameName.resolve("pom.xml");
+            if (Files.exists(subPomXml)) {
+                return subDirWithSameName;
+            }
+        }
+
+        // 递归查找子目录（最多3层）
         try (Stream<Path> paths = Files.walk(sourceDir, 3)) {
             return paths
                 .filter(Files::isDirectory)
@@ -573,7 +600,17 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             return sourceDir;
         }
 
-        // 递归查找子目录
+        // 检查是否存在与当前目录同名的子目录（常见于 monorepo 结构）
+        // 例如：sourceDir = /path/to/manage，检查 /path/to/manage/manage 是否存在
+        Path subDirWithSameName = sourceDir.resolve(sourceDir.getFileName().toString());
+        if (Files.exists(subDirWithSameName)) {
+            Path subPackageJson = subDirWithSameName.resolve("package.json");
+            if (Files.exists(subPackageJson)) {
+                return subDirWithSameName;
+            }
+        }
+
+        // 递归查找子目录（最多3层）
         try (Stream<Path> paths = Files.walk(sourceDir, 3)) {
             return paths
                 .filter(Files::isDirectory)
