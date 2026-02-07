@@ -3,6 +3,7 @@ package com.opster.module.service.service.impl;
 import cn.hutool.core.util.StrUtil;
 import com.jcraft.jsch.Session;
 import com.opster.common.SshUtils;
+import com.opster.common.enums.RepositoryType;
 import com.opster.common.enums.RunStatus;
 import com.opster.common.enums.Status;
 import com.opster.module.project.entity.Project;
@@ -12,6 +13,7 @@ import com.opster.module.server.repository.ServerRepository;
 import com.opster.module.service.entity.AppService;
 import com.opster.module.service.repository.AppServiceRepository;
 import com.opster.module.service.service.AppServiceService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 
+@Slf4j
 @Service
 @Transactional
 public class AppServiceServiceImpl implements AppServiceService {
@@ -235,7 +238,11 @@ public class AppServiceServiceImpl implements AppServiceService {
         }
         Project project = projectOpt.get();
 
-        // 构建部署路径
+        // 从 Git URL 提取服务别名
+        String gitUrl = determineGitUrlForService(service, project);
+        String serviceAlias = extractServiceAliasFromGitUrl(gitUrl);
+
+        // 构建部署路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
         String deployPath = project.getDeployPath();
         String projectCode = project.getProjectCode();
         String projectPath = service.getProjectPath();
@@ -243,8 +250,11 @@ public class AppServiceServiceImpl implements AppServiceService {
         StringBuilder fullPath = new StringBuilder(deployPath);
         if (StrUtil.isNotBlank(projectCode)) {
             fullPath.append("/").append(projectCode);
-            if (StrUtil.isNotBlank(projectPath)) {
-                fullPath.append("/").append(projectPath);
+            if (StrUtil.isNotBlank(serviceAlias)) {
+                fullPath.append("/").append(serviceAlias);
+                if (StrUtil.isNotBlank(projectPath)) {
+                    fullPath.append("/").append(projectPath);
+                }
             }
         }
 
@@ -285,6 +295,80 @@ public class AppServiceServiceImpl implements AppServiceService {
 
         } finally {
             SshUtils.disconnect(session);
+        }
+    }
+
+    /**
+     * 确定 Git URL（用于服务）
+     */
+    private String determineGitUrlForService(AppService service, Project project) {
+        // 优先使用服务的Git URL
+        if (StrUtil.isNotBlank(service.getRepoGitUrl())) {
+            return service.getRepoGitUrl();
+        }
+
+        // 从项目的repositories中查找
+        if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
+            RepositoryType repoType = service.getRepositoryType() != null ?
+                RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND;
+
+            return project.getRepositories().stream()
+                .filter(r -> r.getType() == repoType)
+                .findFirst()
+                .map(com.opster.module.project.dto.RepositoryDTO::getGitUrl)
+                .orElse(project.getRepositories().get(0).getGitUrl());
+        }
+
+        throw new RuntimeException("未找到Git仓库地址");
+    }
+
+    /**
+     * 从 Git URL 提取服务别名（仓库名）
+     */
+    private String extractServiceAliasFromGitUrl(String gitUrl) {
+        if (StrUtil.isBlank(gitUrl)) {
+            return "service";
+        }
+
+        try {
+            String repoName = "";
+
+            // 处理 SSH 格式：git@github.com:xxx/repo.git
+            if (gitUrl.startsWith("git@")) {
+                int colonIndex = gitUrl.indexOf(':');
+                if (colonIndex > 0) {
+                    String pathPart = gitUrl.substring(colonIndex + 1);
+                    String[] parts = pathPart.split("/");
+                    repoName = parts[parts.length - 1];
+                }
+            }
+            // 处理 HTTPS/HTTP 格式
+            else {
+                // 移除协议部分
+                String urlWithoutProtocol = gitUrl.replaceFirst("^https?://", "");
+                // 移除认证信息（如：username:password@）
+                int atIndex = urlWithoutProtocol.indexOf('@');
+                if (atIndex > 0) {
+                    urlWithoutProtocol = urlWithoutProtocol.substring(atIndex + 1);
+                }
+                // 按 / 分割，获取最后一部分
+                String[] parts = urlWithoutProtocol.split("/");
+                repoName = parts[parts.length - 1];
+            }
+
+            // 移除 .git 后缀
+            if (repoName.endsWith(".git")) {
+                repoName = repoName.substring(0, repoName.length() - 4);
+            }
+
+            // 移除其他可能的特殊字符
+            repoName = repoName.replaceAll("[^a-zA-Z0-9_-]", "");
+
+            return StrUtil.isBlank(repoName) ? "service" : repoName;
+
+        } catch (Exception e) {
+            log.warn("从 Git URL 提取服务别名失败: {}, 使用默认值", gitUrl, e);
+            return "service";
         }
     }
 }
