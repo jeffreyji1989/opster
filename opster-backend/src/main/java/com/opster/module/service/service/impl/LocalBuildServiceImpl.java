@@ -369,17 +369,50 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         return Paths.get(deployPath, projectCode, alias, "artifacts");
     }
 
-    /**
-     * 获取日志目录
-     * @param projectCode 项目编码
-     * @param serviceAlias 服务别名
-     * @return 日志目录
-     */
-    private Path getLogsDir(String projectCode, String serviceAlias) {
+    @Override
+    public Path getLogsDir(String projectCode, String serviceAlias) {
         // 如果没有配置 serviceAlias，使用默认值
         String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
         String deployPath = opsterProperties.getDeployPath();
         return Paths.get(deployPath, projectCode, alias, "logs");
+    }
+
+    @Override
+    public Path getLatestBuildLogFile(String projectCode, String serviceAlias, RepositoryType repositoryType) {
+        try {
+            Path logsDir = getLogsDir(projectCode, serviceAlias);
+            if (!LocalCommandUtils.directoryExists(logsDir)) {
+                return null;
+            }
+
+            // 确定日志文件前缀
+            String logPrefix;
+            if (repositoryType == RepositoryType.FRONTEND || repositoryType == RepositoryType.MOBILE) {
+                logPrefix = "build-npm-";
+            } else {
+                logPrefix = "build-maven-";
+            }
+
+            // 查找最新的日志文件（按修改时间排序）
+            try (var paths = Files.list(logsDir)) {
+                return paths
+                    .filter(Files::isRegularFile)
+                    .filter(p -> p.getFileName().toString().startsWith(logPrefix) && p.getFileName().toString().endsWith(".log"))
+                    .max((p1, p2) -> {
+                        try {
+                            long time1 = Files.getLastModifiedTime(p1).toMillis();
+                            long time2 = Files.getLastModifiedTime(p2).toMillis();
+                            return Long.compare(time1, time2); // 返回最新的
+                        } catch (Exception e) {
+                            return 0;
+                        }
+                    })
+                    .orElse(null);
+            }
+        } catch (Exception e) {
+            log.error("获取最新构建日志文件失败", e);
+            return null;
+        }
     }
 
     /**
@@ -562,9 +595,22 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         logger.info("Maven命令: " + mavenCmd);
         logger.info("使用PATH中的Maven: " + mavenHomeForEnv + "/bin/mvn");
 
+        // 构建完整的 Maven 命令，添加详细输出参数
+        // -B: batch mode（批处理模式，输出更详细的进度信息）
+        // -e: 显示完整的错误堆栈信息
+        String fullMavenCmd = mavenCmd;
+        if (!mavenCmd.contains("-B")) {
+            fullMavenCmd = mavenCmd + " -B";
+        }
+        if (!mavenCmd.contains("-e")) {
+            fullMavenCmd = fullMavenCmd + " -e";
+        }
+
+        logger.info("执行完整Maven命令: " + fullMavenCmd);
+
         // 传递 logger 参数以记录命令输出
-        // Maven命令直接使用配置的命令，通过PATH环境变量找到mvn
-        return LocalCommandUtils.executeCommand(projectRoot, mavenCmd, wsSession, envVars, logger);
+        // 使用增强后的 Maven 命令以获取更详细的编译输出
+        return LocalCommandUtils.executeCommand(projectRoot, fullMavenCmd, wsSession, envVars, logger);
     }
 
     /**
@@ -629,7 +675,10 @@ public class LocalBuildServiceImpl implements LocalBuildService {
      */
     private boolean executeNpmInstall(Path projectRoot, String nodeBinDir, WebSocketSession wsSession, LocalBuildLogger logger) {
         String[] envVars = buildNodeEnvVars(nodeBinDir);
-        return LocalCommandUtils.executeCommand(projectRoot, "npm install", wsSession, envVars, logger);
+        // 添加详细输出参数，显示所有依赖安装过程
+        String npmInstallCmd = "npm install --loglevel=verbose";
+        logger.info("执行npm install命令: " + npmInstallCmd);
+        return LocalCommandUtils.executeCommand(projectRoot, npmInstallCmd, wsSession, envVars, logger);
     }
 
     /**
@@ -639,7 +688,14 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     private boolean executeNpmBuild(Path projectRoot, String buildCmd, String nodeBinDir,
                                    WebSocketSession wsSession, LocalBuildLogger logger) {
         String[] envVars = buildNodeEnvVars(nodeBinDir);
-        return LocalCommandUtils.executeCommand(projectRoot, buildCmd, wsSession, envVars, logger);
+        // 构建完整的 npm 命令，添加详细输出参数
+        // 如果构建命令不包含日志级别参数，则自动添加
+        String fullBuildCmd = buildCmd;
+        if (!buildCmd.contains("--loglevel")) {
+            fullBuildCmd = buildCmd + " --loglevel=verbose";
+        }
+        logger.info("执行npm构建命令: " + fullBuildCmd);
+        return LocalCommandUtils.executeCommand(projectRoot, fullBuildCmd, wsSession, envVars, logger);
     }
 
     /**

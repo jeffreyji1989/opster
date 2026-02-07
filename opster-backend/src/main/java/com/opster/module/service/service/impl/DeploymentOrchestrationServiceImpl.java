@@ -28,6 +28,7 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -159,6 +160,27 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             long artifactSize = java.nio.file.Files.size(artifact);
+
+            // 将构建日志内容追加到发版日志中
+            Path buildLogFile = localBuildService.getLatestBuildLogFile(
+                projectCode,
+                extractServiceAliasFromGitUrl(gitUrl),
+                service.getRepositoryType() != null ?
+                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND
+            );
+            if (buildLogFile != null && Files.exists(buildLogFile)) {
+                logger.log(">>> ================ 构建详细日志 ================");
+                try (BufferedReader reader = Files.newBufferedReader(buildLogFile, StandardCharsets.UTF_8)) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        logger.log(line);
+                    }
+                } catch (Exception e) {
+                    log.warn("读取构建日志失败: {}", e.getMessage());
+                }
+                logger.log(">>> ============== 构建详细日志结束 ==============");
+            }
+
             logger.log(">>> 本地打包完成! 产物: " + artifact.getFileName().toString() + " (" + (artifactSize / 1024 / 1024) + " MB)");
 
             // 6. 连接远程服务器
@@ -1326,6 +1348,35 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 gitPassword,
                 service.getNodeVersion()  // 传递 Node.js 版本
             );
+
+            // 验证打包产物是否生成成功
+            if (artifact == null || !java.nio.file.Files.exists(artifact)) {
+                throw new Exception("打包失败: 未生成打包产物文件");
+            }
+
+            long artifactSize = java.nio.file.Files.size(artifact);
+
+            // 将构建日志内容追加到发版日志中
+            Path buildLogFile = localBuildService.getLatestBuildLogFile(
+                projectCode,
+                extractServiceAliasFromGitUrl(gitUrl),
+                service.getRepositoryType() != null ?
+                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND
+            );
+            if (buildLogFile != null && Files.exists(buildLogFile)) {
+                logger.log(">>> ================ 构建详细日志 ================");
+                try (BufferedReader reader = Files.newBufferedReader(buildLogFile, StandardCharsets.UTF_8)) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        logger.log(line);
+                    }
+                } catch (Exception e) {
+                    log.warn("读取构建日志失败: {}", e.getMessage());
+                }
+                logger.log(">>> ============== 构建详细日志结束 ==============");
+            }
+
+            logger.log(">>> 本地打包完成! 产物: " + artifact.getFileName().toString() + " (" + (artifactSize / 1024 / 1024) + " MB)");
 
             // 5. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");

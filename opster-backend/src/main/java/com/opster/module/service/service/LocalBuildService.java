@@ -120,4 +120,23 @@ public interface LocalBuildService {
      * @return 产物归档目录路径
      */
     Path getArtifactsDir(String projectCode, String serviceAlias);
+
+    /**
+     * 获取构建日志目录路径
+     *
+     * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
+     * @return 构建日志目录路径
+     */
+    Path getLogsDir(String projectCode, String serviceAlias);
+
+    /**
+     * 获取最新的构建日志文件路径
+     *
+     * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
+     * @param repositoryType 仓库类型（BACKEND/FRONTEND）
+     * @return 最新的构建日志文件路径，如果不存在则返回null
+     */
+    Path getLatestBuildLogFile(String projectCode, String serviceAlias, RepositoryType repositoryType);
 }
