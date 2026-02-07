@@ -452,25 +452,32 @@
     </el-dialog>
 
     <!-- 启动脚本预览对话框 -->
-    <el-dialog v-model="scriptDialogVisible" title="启动脚本预览" width="800px">
+    <el-dialog v-model="scriptDialogVisible" title="启动脚本预览" width="900px">
       <div class="script-header">
         <el-space>
           <el-tag type="info">标准 Spring Boot 启动脚本</el-tag>
-          <el-tag type="success">无需传递参数</el-tag>
-          <el-tag type="warning">自动检测jar文件</el-tag>
+          <el-tag type="success">自动检查端口占用</el-tag>
+          <el-tag type="warning">优雅停止旧进程</el-tag>
           <el-tag type="primary">日志输出到logs/目录</el-tag>
+          <el-tag type="info">内容可编辑</el-tag>
         </el-space>
       </div>
 
       <div class="script-content">
-        <pre class="script-preview">{{ generatedScript }}</pre>
+        <el-input
+          v-model="generatedScript"
+          type="textarea"
+          :rows="25"
+          placeholder="脚本内容"
+          class="script-editor"
+        />
       </div>
 
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="copyScript">复制到剪贴板</el-button>
           <el-button @click="downloadScript">下载脚本文件</el-button>
-          <el-button @click="handleUploadToServer" type="warning" :loading="uploadingScript" :disabled="uploadingScript">
+          <el-button @click="handleUploadToServer" type="primary" :loading="uploadingScript" :disabled="uploadingScript">
             上传到服务器
           </el-button>
           <el-button @click="scriptDialogVisible = false">关闭</el-button>
@@ -1410,6 +1417,69 @@ get_pid() {
     fi
 }
 
+# 检查端口是否被占用
+check_port() {
+    local port=\$1
+
+    # 检查端口是否被监听
+    local pid=\$(lsof -ti:\$port 2>/dev/null)
+
+    if [ -n "\$pid" ]; then
+        log_warn "检测到端口 \$port 已被占用 (PID: \$pid)"
+
+        # 检查是否是 Java 进程
+        if ps -p "\$pid" -o command= 2>/dev/null | grep -q "java"; then
+            log_warn "该进程是 Java 应用，尝试优雅停止..."
+            graceful_stop "\$pid"
+        else
+            log_error "端口 \$port 被非 Java 进程占用 (PID: \$pid, Command: \$(ps -p \$pid -o command= | xargs))"
+            log_error "无法自动停止，请手动处理后重试"
+            exit 1
+        fi
+
+        # 等待端口释放
+        sleep 2
+
+        # 再次检查
+        pid=\$(lsof -ti:\$port 2>/dev/null)
+        if [ -n "\$pid" ]; then
+            log_error "端口 \$port 仍被占用，优雅停止失败"
+            log_error "请手动执行: lsof -ti:\$port | xargs kill"
+            exit 1
+        fi
+
+        log_info "端口 \$port 已释放"
+    fi
+}
+
+# 优雅停止进程
+graceful_stop() {
+    local pid=\$1
+    local max_wait=30  # 最大等待30秒
+    local waited=0
+
+    log_info "发送 SIGTERM 信号到进程 \$pid ..."
+    kill "\$pid" 2>/dev/null || return 0
+
+    # 等待进程退出
+    while ps -p "\$pid" > /dev/null 2>&1 && [ \$waited -lt \$max_wait ]; do
+        sleep 1
+        waited=\$((waited + 1))
+        echo -n "."
+    done
+    echo ""
+
+    # 检查进程是否已退出
+    if ps -p "\$pid" > /dev/null 2>&1; then
+        log_warn "进程 \$pid 在 \$max_wait 秒内未响应 SIGTERM"
+        log_warn "如需强制停止，请执行: kill -9 \$pid"
+        return 1
+    else
+        log_info "进程 \$pid 已优雅停止 (耗时: \${waited}秒)"
+        return 0
+    fi
+}
+
 # 检查应用是否已运行
 check_running() {
     local pid=\$(get_pid)
@@ -1417,9 +1487,14 @@ check_running() {
         if ps -p "\$pid" > /dev/null 2>&1; then
             # 进程存在，进一步验证是否是 Java 进程
             if ps -p "\$pid" -o command= | grep -q "java.*jar"; then
-                log_error "应用已在运行 (PID: \$pid)"
-                log_error "如需重启，请先执行: sh stop.sh 或 kill \$pid"
-                exit 1
+                log_warn "检测到应用已在运行 (PID: \$pid)"
+
+                # 询问是否重启
+                log_warn "准备优雅停止旧进程并重启..."
+                graceful_stop "\$pid"
+
+                # 清理 PID 文件
+                rm -f "\$PID_FILE"
             else
                 # PID 存在但不是 Java 进程，可能是 PID 重用
                 log_warn "检测到旧 PID 文件，但进程不是 Java 应用，清理中..."
@@ -1442,6 +1517,10 @@ start() {
     # 检查Java
     check_java
 
+    # 检查端口是否被占用
+    log_info "检查端口 \$PORT 是否可用..."
+    check_port \$PORT
+
     # 检查是否已运行
     check_running
 
@@ -1456,6 +1535,7 @@ start() {
     fi
 
     log_info "使用jar文件: \$jar_file"
+    log_info "服务端口: \$PORT"
     log_info "日志文件: \$LOG_DIR/app.log"
 
     # 启动应用
@@ -1725,16 +1805,15 @@ onMounted(() => {
   margin: 15px 0;
 }
 
-.script-preview {
+.script-editor {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.script-editor :deep(.el-textarea__inner) {
   background: #1e1e1e;
   color: #f8f8f2;
-  padding: 20px;
-  border-radius: 4px;
-  max-height: 500px;
-  overflow: auto;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.5;
-  white-space: pre;
 }
 </style>
