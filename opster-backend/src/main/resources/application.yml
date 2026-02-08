@@ -8,13 +8,13 @@ spring:
   application:
     name: opster-backend
   datasource:
-    driver-class-name: org.sqlite.JDBC
-    url: jdbc:sqlite:opster.db
-    username: 
-    password: 
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://39.155.134.146:33306/opster?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: admin
+    password: adminSCzn_135246!@#
 
   jpa:
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    database-platform: org.hibernate.dialect.MySQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
@@ -48,3 +48,42 @@ opster:
     nvm-path: ~/.nvm
     auto-install: true
     install-timeout: 3000
+  # 异步线程池配置
+  async:
+    deployment:
+      core-pool-size: 4
+      max-pool-size: 16
+      queue-capacity: 100
+    batch-deployment:
+      core-pool-size: 2
+      max-pool-size: 8
+      queue-capacity: 50
+    scheduled-deployment:
+      core-pool-size: 2
+      max-pool-size: 4
+      queue-capacity: 20
+  # SSH 连接池配置
+  ssh:
+    pool:
+      enabled: true
+      max-connections-per-server: 2
+      keep-alive-interval: 30000
+      connection-timeout: 30000
+      session-timeout: 300000
+      server-alive-count-max: 3
+  # 文件传输配置
+  transfer:
+    buffer-size: 1048576
+    chunk-size: 5242880
+    max-retries: 3
+    retry-delays: "0,2000,5000"
+    progress-interval: 10
+    prefer-rsync: true
+    rsync-timeout: 600000
+    # 传输前检查
+    pre-check:
+      enabled: true
+      check-disk-space: true
+      check-server-load: true
+      min-free-space-ratio: 0.2
+      max-load-average: 8.0
