@@ -1705,8 +1705,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String projectCode = project.getProjectCode();
         String gitUrl = determineGitUrl(service, project);
 
-        // 创建本地日志记录器（无 WebSocket）
-        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
+        // 创建本地日志记录器（无 WebSocket，传入 serviceId 以区分不同服务的日志）
+        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath(), serviceId)) {
             Integer result = doExecuteDeployment(serviceId, logger);
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
@@ -1735,8 +1735,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String projectCode = project.getProjectCode();
         String gitUrl = determineGitUrl(service, project);
 
-        // 创建本地日志记录器（无 WebSocket）
-        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
+        // 创建本地日志记录器（无 WebSocket，传入 serviceId 以区分不同服务的日志）
+        try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath(), serviceId)) {
             Integer result = doRollbackToSpecificVersion(recordId, logger);
             return CompletableFuture.completedFuture(result);
         } catch (Exception e) {

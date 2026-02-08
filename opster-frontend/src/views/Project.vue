@@ -81,6 +81,8 @@
 
               <el-input v-model="repo.description" placeholder="描述" style="width: 100px" />
 
+              <el-input v-model="repo.alias" placeholder="别名" style="width: 100px" />
+
               <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain icon="Delete">
               </el-button>
             </div>
@@ -122,6 +124,7 @@
         <el-table-column prop="gitUrl" label="Git 地址" show-overflow-tooltip />
         <el-table-column prop="projectPath" label="项目路径" />
         <el-table-column prop="description" label="描述" />
+        <el-table-column prop="alias" label="别名" />
       </el-table>
     </el-dialog>
   </div>
@@ -159,8 +162,8 @@ const form = reactive({
   gitUsername: '',
   gitPassword: '',
   repositories: [
-    { type: 0, gitUrl: '', projectPath: '', description: '' },
-    { type: 1, gitUrl: '', projectPath: '', description: '' }
+    { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
+    { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
   ],
   deployPath: '',
   businessLine: '',
@@ -211,8 +214,8 @@ const handleAdd = () => {
   form.gitUsername = ''
   form.gitPassword = ''
   form.repositories = [
-    { type: 0, gitUrl: '', projectPath: '', description: '' },
-    { type: 1, gitUrl: '', projectPath: '', description: '' }
+    { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
+    { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
   ]
   form.deployPath = ''
   form.businessLine = ''
@@ -232,8 +235,8 @@ const handleEdit = (row) => {
     repositories: Array.isArray(row.repositories) && row.repositories.length > 0
       ? JSON.parse(JSON.stringify(row.repositories))
       : [
-          { type: 0, gitUrl: '', projectPath: '', description: '' },
-          { type: 1, gitUrl: '', projectPath: '', description: '' }
+          { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
+          { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
         ],
     deployPath: row.deployPath || '',
     businessLine: row.businessLine || '',
@@ -311,7 +314,8 @@ const addRepository = () => {
     type: '',
     gitUrl: '',
     projectPath: '',
-    description: ''
+    description: '',
+    alias: ''
   })
 }
 

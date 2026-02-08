@@ -2,6 +2,7 @@ package com.opster.module.service.controller;
 
 import com.opster.module.service.entity.AppService;
 import com.opster.module.service.service.AppServiceService;
+import com.opster.module.service.service.BatchDeploymentService;
 import com.opster.module.service.service.DeploymentOrchestrationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 服务管理控制器
@@ -26,6 +28,9 @@ public class ServiceController {
 
     @Autowired
     private DeploymentOrchestrationService deploymentOrchestrationService;
+
+    @Autowired
+    private BatchDeploymentService batchDeploymentService;
 
     /**
      * 获取所有服务
@@ -149,14 +154,88 @@ public class ServiceController {
     public Map<String, Object> deployAsync(@PathVariable Integer id) {
         Map<String, Object> result = new HashMap<>();
         try {
-            Integer deploymentRecordId = deploymentOrchestrationService.executeDeploymentAsync(id);
+            CompletableFuture<Integer> future = deploymentOrchestrationService.executeDeploymentAsync(id);
+            // 不等待，直接返回（任务已在后台执行）
             result.put("success", true);
             result.put("message", "正在发版，详细信息去发版记录查看");
-            result.put("deploymentRecordId", deploymentRecordId);
+            // 注意：由于是异步执行，recordId 可能还未生成
         } catch (Exception e) {
             log.error("Async deployment failed for service: {}", id, e);
             result.put("success", false);
             result.put("message", "发版失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 批量异步发版（后台执行，不打开 WebSocket 窗口）
+     * 使用新的 BatchDeploymentService 实现真正的并发批量发版
+     */
+    @PostMapping("/batch-deploy")
+    public Map<String, Object> batchDeployAsync(
+            @RequestBody List<Integer> serviceIds,
+            @RequestParam(required = false) Integer concurrency) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (serviceIds == null || serviceIds.isEmpty()) {
+                result.put("success", false);
+                result.put("message", "请选择要发版的服务");
+                return result;
+            }
+
+            // 使用新的批量发版服务
+            BatchDeploymentService.BatchDeploymentResult deploymentResult =
+                    batchDeploymentService.submitBatchDeployment(serviceIds, concurrency);
+
+            result.put("success", true);
+            result.put("message", deploymentResult.getMessage());
+            result.put("batchTaskId", deploymentResult.getBatchTaskId());
+        } catch (Exception e) {
+            log.error("Batch deployment failed", e);
+            result.put("success", false);
+            result.put("message", "批量发版失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 查询批量发版进度
+     */
+    @GetMapping("/batch-deploy/{batchTaskId}/progress")
+    public Map<String, Object> getBatchDeployProgress(@PathVariable String batchTaskId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            BatchDeploymentService.BatchProgress progress = batchDeploymentService.getBatchProgress(batchTaskId);
+            if (progress == null) {
+                result.put("success", false);
+                result.put("message", "批量任务不存在: " + batchTaskId);
+                return result;
+            }
+
+            result.put("success", true);
+            result.put("data", progress);
+        } catch (Exception e) {
+            log.error("Get batch deployment progress failed: {}", batchTaskId, e);
+            result.put("success", false);
+            result.put("message", "查询进度失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /**
+     * 取消批量发版任务
+     */
+    @PostMapping("/batch-deploy/{batchTaskId}/cancel")
+    public Map<String, Object> cancelBatchDeploy(@PathVariable String batchTaskId) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            boolean cancelled = batchDeploymentService.cancelBatchDeployment(batchTaskId);
+            result.put("success", cancelled);
+            result.put("message", cancelled ? "批量任务已取消" : "取消失败，任务可能已结束或不存在");
+        } catch (Exception e) {
+            log.error("Cancel batch deployment failed: {}", batchTaskId, e);
+            result.put("success", false);
+            result.put("message", "取消失败: " + e.getMessage());
         }
         return result;
     }
@@ -168,10 +247,11 @@ public class ServiceController {
     public Map<String, Object> rollbackToVersionAsync(@PathVariable Integer recordId) {
         Map<String, Object> result = new HashMap<>();
         try {
-            Integer newRecordId = deploymentOrchestrationService.rollbackToSpecificVersionAsync(recordId);
+            CompletableFuture<Integer> future = deploymentOrchestrationService.rollbackToSpecificVersionAsync(recordId);
+            // 不等待，直接返回（任务已在后台执行）
             result.put("success", true);
             result.put("message", "正在回退，详细信息去发版记录查看");
-            result.put("deploymentRecordId", newRecordId);
+            // 注意：由于是异步执行，newRecordId 可能还未生成
         } catch (Exception e) {
             log.error("Async rollback failed for record: {}", recordId, e);
             result.put("success", false);

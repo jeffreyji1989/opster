@@ -1,5 +1,6 @@
 package com.opster.module.service.service;
 
+import java.util.concurrent.CompletableFuture;
 import org.springframework.web.socket.WebSocketSession;
 
 /**
@@ -32,9 +33,9 @@ public interface DeploymentOrchestrationService {
      * 日志保存到本地文件，不通过 WebSocket 推送
      *
      * @param serviceId 服务ID
-     * @return 部署记录ID
+     * @return 部署记录ID的Future
      */
-    Integer executeDeploymentAsync(Integer serviceId);
+    CompletableFuture<Integer> executeDeploymentAsync(Integer serviceId);
 
     /**
      * 执行重启（不打包，仅重启远程服务）- WebSocket 模式
@@ -105,7 +106,7 @@ public interface DeploymentOrchestrationService {
      * 日志保存到本地文件，不通过 WebSocket 推送
      *
      * @param recordId 部署记录ID
-     * @return 新的回退记录ID
+     * @return 新的回退记录ID的Future
      */
-    Integer rollbackToSpecificVersionAsync(Integer recordId);
+    CompletableFuture<Integer> rollbackToSpecificVersionAsync(Integer recordId);
 }

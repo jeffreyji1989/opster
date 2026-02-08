@@ -11,11 +11,12 @@ import java.util.List;
 public interface ScheduledDeploymentService {
 
     /**
-     * 创建定时发版任务
+     * 创建定时发版任务（支持多服务）
      * @param task 定时发版任务
+     * @param serviceIds 服务ID列表
      * @return 创建的任务
      */
-    ScheduledDeployment create(ScheduledDeployment task);
+    ScheduledDeployment create(ScheduledDeployment task, List<Integer> serviceIds);
 
     /**
      * 更新定时发版任务

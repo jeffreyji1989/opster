@@ -2,6 +2,7 @@ package com.opster.module.service.service.impl;
 
 import com.opster.common.LocalBuildLogger;
 import com.opster.common.LocalCommandUtils;
+import com.opster.common.LocalDeploymentLogger;
 import com.opster.common.enums.RepositoryType;
 import com.opster.config.OpsterProperties;
 import com.opster.module.service.service.LocalBuildService;
@@ -50,15 +51,16 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                              WebSocketSession wsSession,
                              String username,
                              String password,
-                             String nodeVersion) throws Exception {
+                             String nodeVersion,
+                             LocalDeploymentLogger deploymentLogger) throws Exception {
         // 根据仓库类型选择构建方式
         if (repositoryType == RepositoryType.FRONTEND ||
             repositoryType == RepositoryType.MOBILE) {
             // 前端或移动端项目使用npm构建，传递 nodeVersion 参数
-            return buildNpmArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
+            return buildNpmArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
         } else {
             // 后端或管理后台项目使用Maven构建，nodeVersion 参数作为 JDK 版本传递
-            return buildMavenArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion);
+            return buildMavenArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
         }
     }
 
@@ -72,7 +74,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                    WebSocketSession wsSession,
                                    String username,
                                    String password,
-                                   String jdkVersion) throws Exception {
+                                   String jdkVersion,
+                                   LocalDeploymentLogger deploymentLogger) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
@@ -83,15 +86,21 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             wsSession
         );
 
+        // 如果提供了发版日志记录器，创建代理logger同时写入两个日志文件
+        LocalBuildLogger actualLogger = logger;
+        if (deploymentLogger != null) {
+            actualLogger = new ProxyBuildLogger(logger, deploymentLogger);
+        }
+
         try {
-            logger.info("=== 开始Maven项目打包 ===");
-            logger.info("项目编码: " + projectCode);
-            logger.info("服务别名: " + serviceAlias);
-            logger.info("Git地址: " + gitUrl);
-            logger.info("Git分支: " + gitBranch);
-            logger.info("Maven命令: " + mavenCmd);
+            actualLogger.info("=== 开始Maven项目打包 ===");
+            actualLogger.info("项目编码: " + projectCode);
+            actualLogger.info("服务别名: " + serviceAlias);
+            actualLogger.info("Git地址: " + gitUrl);
+            actualLogger.info("Git分支: " + gitBranch);
+            actualLogger.info("Maven命令: " + mavenCmd);
             if (jdkVersion != null && !jdkVersion.isEmpty()) {
-                logger.info("JDK版本: " + jdkVersion);
+                actualLogger.info("JDK版本: " + jdkVersion);
             }
 
             // 2. 准备工作目录
@@ -103,43 +112,43 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
                 if (projectPath.contains("..")) {
-                    logger.error("项目路径包含非法字符: " + projectPath);
+                    actualLogger.error("项目路径包含非法字符: " + projectPath);
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
                 LocalCommandUtils.createDirectories(buildDir);
-                logger.info("创建项目路径子目录: " + buildDir);
+                actualLogger.info("创建项目路径子目录: " + buildDir);
             }
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
-            logger.info(">>> 开始Git操作...");
-            logger.info(">>> 源码目录: " + buildDir);
-            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, logger, username, password);
+            actualLogger.info(">>> 开始Git操作...");
+            actualLogger.info(">>> 源码目录: " + buildDir);
+            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
             if (!gitSuccess) {
-                logger.error("Git操作失败");
+                actualLogger.error("Git操作失败");
                 throw new Exception("Git operation failed");
             }
 
             // 5. 查找项目根目录
             Path projectRoot = findMavenProjectRoot(buildDir);
-            logger.info("项目根目录: " + projectRoot);
+            actualLogger.info("项目根目录: " + projectRoot);
 
             // 5. Maven打包
-            logger.info(">>> 开始Maven打包...");
-            boolean mavenSuccess = executeMavenBuild(projectRoot, mavenCmd, mavenCmd, wsSession, logger);
+            actualLogger.info(">>> 开始Maven打包...");
+            boolean mavenSuccess = executeMavenBuild(projectRoot, mavenCmd, mavenCmd, wsSession, actualLogger);
             if (!mavenSuccess) {
-                logger.error("Maven打包失败");
+                actualLogger.error("Maven打包失败");
                 throw new Exception("Maven build failed");
             }
 
             // 6. 查找打包产物
             Path jarFile = findMavenArtifact(projectRoot);
             if (jarFile == null) {
-                logger.error("未找到打包产物（jar文件）");
+                actualLogger.error("未找到打包产物（jar文件）");
                 throw new Exception("Maven artifact not found");
             }
 
-            logger.info("打包产物: " + jarFile);
+            actualLogger.info("打包产物: " + jarFile);
 
             // 7. 归档产物（保持原始文件名，添加时间戳前缀避免冲突）
             Path artifactsDir = getArtifactsDir(projectCode, serviceAlias);
@@ -150,13 +159,13 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             Path artifactPath = artifactsDir.resolve(artifactName);
 
             Files.copy(jarFile, artifactPath, StandardCopyOption.REPLACE_EXISTING);
-            logger.info("产物已归档到: " + artifactPath);
+            actualLogger.info("产物已归档到: " + artifactPath);
 
-            logger.info("=== Maven项目打包完成 ===");
+            actualLogger.info("=== Maven项目打包完成 ===");
             return artifactPath;
 
         } catch (Exception e) {
-            logger.error("Maven打包失败", e);
+            actualLogger.error("Maven打包失败", e);
             throw e;
         }
     }
@@ -171,7 +180,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                                 WebSocketSession wsSession,
                                 String username,
                                 String password,
-                                String nodeVersion) throws Exception {
+                                String nodeVersion,
+                                LocalDeploymentLogger deploymentLogger) throws Exception {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
 
         // 1. 创建日志记录器
@@ -182,13 +192,19 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             wsSession
         );
 
+        // 如果提供了发版日志记录器，创建代理logger同时写入两个日志文件
+        LocalBuildLogger actualLogger = logger;
+        if (deploymentLogger != null) {
+            actualLogger = new ProxyBuildLogger(logger, deploymentLogger);
+        }
+
         try {
-            logger.info("=== 开始npm项目打包 ===");
-            logger.info("项目编码: " + projectCode);
-            logger.info("服务别名: " + serviceAlias);
-            logger.info("Git地址: " + gitUrl);
-            logger.info("Git分支: " + gitBranch);
-            logger.info("构建命令: " + buildCmd);
+            actualLogger.info("=== 开始npm项目打包 ===");
+            actualLogger.info("项目编码: " + projectCode);
+            actualLogger.info("服务别名: " + serviceAlias);
+            actualLogger.info("Git地址: " + gitUrl);
+            actualLogger.info("Git分支: " + gitBranch);
+            actualLogger.info("构建命令: " + buildCmd);
 
             // 2. 准备工作目录
             Path sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
@@ -199,31 +215,31 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
                 if (projectPath.contains("..")) {
-                    logger.error("项目路径包含非法字符: " + projectPath);
+                    actualLogger.error("项目路径包含非法字符: " + projectPath);
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
                 LocalCommandUtils.createDirectories(buildDir);
-                logger.info("创建项目路径子目录: " + buildDir);
+                actualLogger.info("创建项目路径子目录: " + buildDir);
             }
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
-            logger.info(">>> 开始Git操作...");
-            logger.info(">>> 源码目录: " + buildDir);
-            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, logger, username, password);
+            actualLogger.info(">>> 开始Git操作...");
+            actualLogger.info(">>> 源码目录: " + buildDir);
+            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
             if (!gitSuccess) {
-                logger.error("Git操作失败");
+                actualLogger.error("Git操作失败");
                 throw new Exception("Git operation failed");
             }
 
             // 5. 查找package.json（前端项目根目录）
             Path projectRoot = findNpmProjectRoot(buildDir);
-            logger.info("项目根目录: " + projectRoot);
+            actualLogger.info("项目根目录: " + projectRoot);
 
             // ========== Node.js 版本管理 ==========
             String nodeBinDir = null;  // 用于存储 Node.js bin 目录路径
             if (nodeVersion != null && !nodeVersion.isEmpty() && opsterProperties.getNodejs().getEnabled()) {
-                logger.info(">>> 检查 Node.js 版本: " + nodeVersion);
+                actualLogger.info(">>> 检查 Node.js 版本: " + nodeVersion);
 
                 // 验证版本格式
                 if (!nodeVersionService.isValidVersionFormat(nodeVersion)) {
@@ -233,12 +249,12 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 // 检查版本是否已安装
                 if (!nodeVersionService.isVersionInstalled(nodeVersion)) {
                     if (opsterProperties.getNodejs().getAutoInstall()) {
-                        logger.info(">>> Node.js 版本 " + nodeVersion + " 未安装，开始自动安装...");
+                        actualLogger.info(">>> Node.js 版本 " + nodeVersion + " 未安装，开始自动安装...");
                         boolean installed = nodeVersionService.installVersion(nodeVersion);
                         if (!installed) {
                             throw new Exception("Node.js 版本 " + nodeVersion + " 安装失败");
                         }
-                        logger.info(">>> Node.js 版本 " + nodeVersion + " 安装成功");
+                        actualLogger.info(">>> Node.js 版本 " + nodeVersion + " 安装成功");
                     } else {
                         throw new Exception("Node.js 版本 " + nodeVersion + " 未安装且自动安装已禁用");
                     }
@@ -246,40 +262,40 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
                 // 获取 Node.js 路径
                 String nodePath = nodeVersionService.getNodePath(nodeVersion);
-                logger.info(">>> 使用 Node.js 版本: " + nodeVersion + " (" + nodePath + ")");
+                actualLogger.info(">>> 使用 Node.js 版本: " + nodeVersion + " (" + nodePath + ")");
 
                 // 获取 bin 目录（node 可执行文件的父目录）
                 File nodeFile = new File(nodePath);
                 nodeBinDir = nodeFile.getParent();
-                logger.info(">>> Node.js bin 目录: " + nodeBinDir);
+                actualLogger.info(">>> Node.js bin 目录: " + nodeBinDir);
             } else {
-                logger.info(">>> 使用系统默认 Node.js 版本");
+                actualLogger.info(">>> 使用系统默认 Node.js 版本");
             }
             // ==========================================
 
             // 6. npm安装依赖
-            logger.info(">>> 开始npm install...");
-            boolean npmInstallSuccess = executeNpmInstall(projectRoot, nodeBinDir, wsSession, logger);
+            actualLogger.info(">>> 开始npm install...");
+            boolean npmInstallSuccess = executeNpmInstall(projectRoot, nodeBinDir, wsSession, actualLogger);
             if (!npmInstallSuccess) {
-                logger.warn("npm install失败，但继续尝试构建");
+                actualLogger.warn("npm install失败，但继续尝试构建");
             }
 
             // 7. npm打包
-            logger.info(">>> 开始npm构建...");
-            boolean buildSuccess = executeNpmBuild(projectRoot, buildCmd, nodeBinDir, wsSession, logger);
+            actualLogger.info(">>> 开始npm构建...");
+            boolean buildSuccess = executeNpmBuild(projectRoot, buildCmd, nodeBinDir, wsSession, actualLogger);
             if (!buildSuccess) {
-                logger.error("npm构建失败");
+                actualLogger.error("npm构建失败");
                 throw new Exception("npm build failed");
             }
 
             // 7. 查找打包产物
             Path distDir = findNpmDistDir(projectRoot);
             if (distDir == null || !Files.exists(distDir)) {
-                logger.error("未找到打包产物（dist目录）");
+                actualLogger.error("未找到打包产物（dist目录）");
                 throw new Exception("npm dist directory not found");
             }
 
-            logger.info("打包产物目录: " + distDir);
+            actualLogger.info("打包产物目录: " + distDir);
 
             // 8. 压缩dist目录为zip
             Path artifactsDir = getArtifactsDir(projectCode, serviceAlias);
@@ -289,13 +305,13 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             Path artifactPath = artifactsDir.resolve(artifactName);
 
             zipDirectory(distDir, artifactPath);
-            logger.info("产物已归档到: " + artifactPath);
+            actualLogger.info("产物已归档到: " + artifactPath);
 
-            logger.info("=== npm项目打包完成 ===");
+            actualLogger.info("=== npm项目打包完成 ===");
             return artifactPath;
 
         } catch (Exception e) {
-            logger.error("npm打包失败", e);
+            actualLogger.error("npm打包失败", e);
             throw e;
         }
     }
@@ -777,6 +793,53 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                          }
                      });
             }
+        }
+    }
+
+    /**
+     * 代理日志记录器
+     * 同时将日志写入构建日志文件和发版日志文件
+     */
+    private static class ProxyBuildLogger extends LocalBuildLogger {
+        private final LocalBuildLogger buildLogger;
+        private final LocalDeploymentLogger deploymentLogger;
+
+        public ProxyBuildLogger(LocalBuildLogger buildLogger, LocalDeploymentLogger deploymentLogger) {
+            // 传递一个虚拟的日志文件路径和 WebSocket session，实际不会使用
+            super(buildLogger.getLogFile(), null);
+            this.buildLogger = buildLogger;
+            this.deploymentLogger = deploymentLogger;
+        }
+
+        @Override
+        public void log(String message) {
+            // 同时写入两个日志
+            buildLogger.log(message);
+            deploymentLogger.log(message);
+        }
+
+        @Override
+        public void info(String message) {
+            buildLogger.info(message);
+            deploymentLogger.log(message);
+        }
+
+        @Override
+        public void error(String message) {
+            buildLogger.error(message);
+            deploymentLogger.log(message);
+        }
+
+        @Override
+        public void warn(String message) {
+            buildLogger.warn(message);
+            deploymentLogger.log(message);
+        }
+
+        @Override
+        public void error(String message, Exception e) {
+            buildLogger.error(message, e);
+            deploymentLogger.log(message + " - " + e.getMessage());
         }
     }
 }

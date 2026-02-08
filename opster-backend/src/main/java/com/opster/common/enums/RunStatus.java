@@ -19,8 +19,18 @@ public enum RunStatus {
     /**
      * 异常
      */
-    ABNORMAL(2, "异常");
-    
+    ABNORMAL(2, "异常"),
+
+    /**
+     * 发版中
+     */
+    DEPLOYING(3, "发版中"),
+
+    /**
+     * 发版失败
+     */
+    DEPLOY_FAILED(4, "发版失败");
+
     private final Integer code;
     private final String desc;
     

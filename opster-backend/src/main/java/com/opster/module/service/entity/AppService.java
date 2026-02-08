@@ -7,6 +7,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 /**
  * 服务实体类
  */
@@ -135,4 +137,10 @@ public class AppService extends BaseEntity {
      */
     @Column(name = "service_alias", length = 100)
     private String serviceAlias;
+
+    /**
+     * 上次发版时间
+     */
+    @Column(name = "last_deploy_time")
+    private LocalDateTime lastDeployTime;
 }

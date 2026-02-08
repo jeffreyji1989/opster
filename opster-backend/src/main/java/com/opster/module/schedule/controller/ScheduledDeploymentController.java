@@ -1,11 +1,15 @@
 package com.opster.module.schedule.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opster.module.schedule.entity.ScheduledDeployment;
+import com.opster.module.schedule.entity.ScheduledDeploymentServiceEntity;
+import com.opster.module.schedule.repository.ScheduledDeploymentServiceRepository;
 import com.opster.module.schedule.service.ScheduledDeploymentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 定时发版任务控制器
@@ -16,6 +20,12 @@ public class ScheduledDeploymentController {
 
     @Autowired
     private ScheduledDeploymentService scheduledDeploymentService;
+
+    @Autowired
+    private ScheduledDeploymentServiceRepository scheduledDeploymentServiceRepository;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * 查询所有定时发版任务
@@ -37,13 +47,27 @@ public class ScheduledDeploymentController {
     }
 
     /**
-     * 创建定时发版任务
-     * @param task 定时发版任务
+     * 创建定时发版任务（支持多服务）
+     * @param payload 包含task和serviceIds的Map
      * @return 创建的任务
      */
     @PostMapping
-    public ScheduledDeployment create(@RequestBody ScheduledDeployment task) {
-        return scheduledDeploymentService.create(task);
+    public ScheduledDeployment create(@RequestBody Map<String, Object> payload) {
+        // 使用ObjectMapper正确转换LinkedHashMap到ScheduledDeployment对象
+        ScheduledDeployment task = objectMapper.convertValue(payload.get("task"), ScheduledDeployment.class);
+        @SuppressWarnings("unchecked")
+        List<Integer> serviceIds = (List<Integer>) payload.get("serviceIds");
+        return scheduledDeploymentService.create(task, serviceIds);
+    }
+
+    /**
+     * 获取任务关联的服务列表
+     * @param id 任务ID
+     * @return 服务列表
+     */
+    @GetMapping("/{id}/services")
+    public List<ScheduledDeploymentServiceEntity> getTaskServices(@PathVariable Integer id) {
+        return scheduledDeploymentServiceRepository.findByTaskId(id);
     }
 
     /**

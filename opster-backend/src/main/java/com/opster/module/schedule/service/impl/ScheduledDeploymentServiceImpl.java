@@ -11,8 +11,10 @@ import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.schedule.entity.ScheduledDeployment;
+import com.opster.module.schedule.entity.ScheduledDeploymentServiceEntity;
 import com.opster.module.schedule.enums.ScheduledStatus;
 import com.opster.module.schedule.repository.ScheduledDeploymentRepository;
+import com.opster.module.schedule.repository.ScheduledDeploymentServiceRepository;
 import com.opster.module.schedule.service.ScheduledDeploymentService;
 import com.opster.module.server.entity.Server;
 import com.opster.module.server.repository.ServerRepository;
@@ -24,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,8 +42,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /**
  * 定时发版任务状态常量
@@ -60,6 +61,9 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     private ScheduledDeploymentRepository scheduledDeploymentRepository;
 
     @Autowired
+    private ScheduledDeploymentServiceRepository scheduledDeploymentServiceRepository;
+
+    @Autowired
     private AppServiceRepository appServiceRepository;
 
     @Autowired
@@ -77,31 +81,64 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     @Value("${opster.java-home}")
     private String javaHome;
 
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final ConcurrentHashMap<Integer, Session> executingTasks = new ConcurrentHashMap<>();
 
     @Override
-    public ScheduledDeployment create(ScheduledDeployment task) {
-        // 查询服务信息，补充项目名和服务器信息
-        AppService service = appServiceRepository.findById(task.getServiceId()).orElse(null);
-        if (service == null) {
-            throw new RuntimeException("Service not found: " + task.getServiceId());
-        }
-
-        Optional<Project> projectOpt = projectRepository.findById(service.getProjectId());
-        if (projectOpt.isPresent()) {
-            task.setProjectName(projectOpt.get().getProjectName());
-        }
-
-        Optional<Server> serverOpt = serverRepository.findById(service.getServerId());
-        if (serverOpt.isPresent()) {
-            Server server = serverOpt.get();
-            task.setServerIp(server.getIp());
-            task.setServerAlias(server.getAlias());
-        }
-
+    @Transactional
+    public ScheduledDeployment create(ScheduledDeployment task, List<Integer> serviceIds) {
+        // 设置服务数量
+        task.setServiceCount(serviceIds.size());
         task.setStatus(ScheduledStatus.PENDING.getCode());
-        return scheduledDeploymentRepository.save(task);
+
+        // 为了兼容数据库中废弃字段的NOT NULL约束，设置第一个serviceId
+        if (serviceIds != null && !serviceIds.isEmpty()) {
+            task.setServiceId(serviceIds.get(0));
+        }
+
+        // 保存主任务
+        ScheduledDeployment savedTask = scheduledDeploymentRepository.save(task);
+        log.info("创建定时发版任务: {}, 服务数量: {}", savedTask.getName(), serviceIds.size());
+
+        // 为每个服务创建关联记录
+        for (Integer serviceId : serviceIds) {
+            AppService service = appServiceRepository.findById(serviceId).orElse(null);
+            if (service == null) {
+                log.warn("服务不存在: {}", serviceId);
+                continue;
+            }
+
+            // 查询项目信息
+            String projectName = "";
+            Optional<Project> projectOpt = projectRepository.findById(service.getProjectId());
+            if (projectOpt.isPresent()) {
+                projectName = projectOpt.get().getProjectName();
+            }
+
+            // 查询服务器信息
+            String serverIp = "";
+            String serverAlias = "";
+            Optional<Server> serverOpt = serverRepository.findById(service.getServerId());
+            if (serverOpt.isPresent()) {
+                Server server = serverOpt.get();
+                serverIp = server.getIp();
+                serverAlias = server.getAlias();
+            }
+
+            // 创建关联记录
+            ScheduledDeploymentServiceEntity sds = new ScheduledDeploymentServiceEntity();
+            sds.setTaskId(savedTask.getId());
+            sds.setServiceId(serviceId);
+            sds.setProjectName(projectName);
+            sds.setServerIp(serverIp);
+            sds.setServerAlias(serverAlias);
+            sds.setDeployStatus(0); // 待执行
+
+            scheduledDeploymentServiceRepository.save(sds);
+            log.info("添加服务到任务: serviceId={}, projectName={}, serverIp={}",
+                    serviceId, projectName, serverIp);
+        }
+
+        return savedTask;
     }
 
     @Override
@@ -167,9 +204,9 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
 
             log.info("Found {} pending tasks to execute", tasks.size());
 
-            // 依次执行每个任务
+            // 异步执行每个任务
             for (ScheduledDeployment task : tasks) {
-                executorService.submit(() -> executeScheduledDeployment(task));
+                executeScheduledDeploymentAsync(task);
             }
 
         } catch (Exception e) {
@@ -178,7 +215,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
     }
 
     /**
-     * 执行单个定时发版任务
+     * 执行单个定时发版任务（支持多服务）
      */
     private void executeScheduledDeployment(ScheduledDeployment task) {
         // 检查任务ID是否为null
@@ -186,43 +223,90 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             log.error("Task ID is null, skipping execution");
             return;
         }
-        
+
         // 检查是否已在执行中
         if (executingTasks.containsKey(task.getId())) {
             log.warn("Task {} is already executing, skipping", task.getId());
             return;
         }
 
-        Session sshSession = null;
         try {
-            log.info("Executing scheduled deployment task: {} - {}", task.getId(), task.getName());
+            log.info("执行定时发版任务: {} - {}", task.getId(), task.getName());
 
             // 标记任务为执行中（避免重复执行）
             executingTasks.put(task.getId(), null);
+
+            // 获取任务的所有关联服务
+            List<ScheduledDeploymentServiceEntity> serviceList =
+                    scheduledDeploymentServiceRepository.findByTaskId(task.getId());
+
+            if (serviceList == null || serviceList.isEmpty()) {
+                log.warn("任务 {} 没有关联的服务，跳过执行", task.getId());
+                return;
+            }
+
+            log.info("任务 {} 包含 {} 个服务，开始并发部署", task.getId(), serviceList.size());
+
+            // 并发执行每个服务的部署
+            for (ScheduledDeploymentServiceEntity sds : serviceList) {
+                try {
+                    executeServiceDeployment(task, sds);
+                } catch (Exception e) {
+                    log.error("服务部署失败: taskId={}, serviceId={}",
+                            task.getId(), sds.getServiceId(), e);
+                    // 更新部署状态为失败
+                    sds.setDeployStatus(2);
+                    scheduledDeploymentServiceRepository.save(sds);
+                }
+            }
 
             // 1. 标记任务为已完成
             task.setStatus(ScheduledStatus.COMPLETED.getCode());
             task.setUpdateTime(LocalDateTime.now());
             scheduledDeploymentRepository.save(task);
 
+            log.info("定时发版任务完成: {} - {}", task.getId(), task.getName());
+
+        } catch (Exception e) {
+            log.error("执行定时发版任务失败: taskId={}, error={}", task.getId(), e.getMessage(), e);
+        } finally {
+            // 移除执行锁
+            executingTasks.remove(task.getId());
+        }
+    }
+
+    /**
+     * 执行单个服务的部署
+     */
+    private void executeServiceDeployment(ScheduledDeployment task, ScheduledDeploymentServiceEntity sds) throws Exception {
+        Session sshSession = null;
+        try {
+            log.info("开始部署服务: taskId={}, serviceId={}", task.getId(), sds.getServiceId());
+
             // 2. 获取服务信息
-            Optional<AppService> serviceOpt = appServiceRepository.findById(task.getServiceId());
+            Optional<AppService> serviceOpt = appServiceRepository.findById(sds.getServiceId());
             if (serviceOpt.isEmpty()) {
-                log.error("Service not found for task: {}", task.getId());
+                log.error("服务不存在: serviceId={}", sds.getServiceId());
+                sds.setDeployStatus(2); // 失败
+                scheduledDeploymentServiceRepository.save(sds);
                 return;
             }
             AppService service = serviceOpt.get();
 
             Optional<Server> serverOpt = serverRepository.findById(service.getServerId());
             if (serverOpt.isEmpty()) {
-                log.error("Server not found for task: {}", task.getId());
+                log.error("服务器不存在: serverId={}", service.getServerId());
+                sds.setDeployStatus(2); // 失败
+                scheduledDeploymentServiceRepository.save(sds);
                 return;
             }
             Server server = serverOpt.get();
 
             Optional<Project> projectOpt = projectRepository.findById(service.getProjectId());
             if (projectOpt.isEmpty()) {
-                log.error("Project not found for task: {}", task.getId());
+                log.error("项目不存在: projectId={}", service.getProjectId());
+                sds.setDeployStatus(2); // 失败
+                scheduledDeploymentServiceRepository.save(sds);
                 return;
             }
             Project project = projectOpt.get();
@@ -244,27 +328,47 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             // 生成日志文件路径
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             String logDir = remoteDir + "/p_log";
-            String logFilePath = logDir + "/" + timestamp + ".log";
+            String logFilePath = logDir + "/" + timestamp + "_service" + service.getId() + ".log";
             record.setLogPath(logFilePath);
 
             record = deploymentRecordService.create(record);
-            log.info("Created deployment record: {} for scheduled task: {}", record.getId(), task.getId());
+            log.info("创建部署记录: recordId={}, taskId={}, serviceId={}",
+                    record.getId(), task.getId(), sds.getServiceId());
 
             // 4. 执行发版流程
             doDeployment(sshSession, server, service, project, logFilePath, remoteDir);
 
-            log.info("Scheduled deployment task completed: {} - {}", task.getId(), task.getName());
+            // 更新部署状态为成功
+            sds.setDeployStatus(1); // 成功
+            sds.setDeploymentRecordId(record.getId());
+            scheduledDeploymentServiceRepository.save(sds);
+
+            log.info("服务部署成功: taskId={}, serviceId={}, recordId={}",
+                    task.getId(), sds.getServiceId(), record.getId());
 
         } catch (Exception e) {
-            log.error("Error executing scheduled deployment task {}: {}", task.getId(), e.getMessage(), e);
+            log.error("服务部署失败: taskId={}, serviceId={}, error={}",
+                    task.getId(), sds.getServiceId(), e.getMessage(), e);
+            sds.setDeployStatus(2); // 失败
+            scheduledDeploymentServiceRepository.save(sds);
+            throw e;
         } finally {
-            // 移除执行锁
-            executingTasks.remove(task.getId());
             // 关闭SSH连接
             if (sshSession != null) {
                 SshUtils.disconnect(sshSession);
             }
         }
+    }
+
+    /**
+     * 异步执行单个定时发版任务
+     * 使用 @Async("scheduledDeploymentExecutor") 异步执行
+     *
+     * @param task 定时发版任务
+     */
+    @Async("scheduledDeploymentExecutor")
+    private void executeScheduledDeploymentAsync(ScheduledDeployment task) {
+        executeScheduledDeployment(task);
     }
 
     /**

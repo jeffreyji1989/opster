@@ -27,4 +27,10 @@ public class RepositoryDTO {
      * 仓库描述
      */
     private String description;
+
+    /**
+     * 仓库别名
+     * 用于标识和区分不同的仓库，在发版时会作为服务别名使用
+     */
+    private String alias;
 }

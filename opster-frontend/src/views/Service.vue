@@ -2,6 +2,9 @@
   <div class="page-container">
     <div class="toolbar">
       <el-button type="primary" @click="handleAdd">新增服务</el-button>
+      <el-button type="primary" :disabled="selectedServices.length === 0" @click="handleBatchDeploy">
+        批量发版<el-text v-if="selectedServices.length > 0" style="margin-left: 5px;">({{ selectedServices.length }})</el-text>
+      </el-button>
       <el-form :inline="true" :model="queryForm" style="margin-left: 20px;">
         <el-form-item label="项目名称">
           <el-select v-model="queryForm.projectId" placeholder="全部" style="width: 150px;">
@@ -28,6 +31,8 @@
             <el-option label="未启动" value="0" />
             <el-option label="正常" value="1" />
             <el-option label="异常" value="2" />
+            <el-option label="发版中" value="3" />
+            <el-option label="发版失败" value="4" />
           </el-select>
         </el-form-item>
         <el-form-item label="启用状态">
@@ -44,11 +49,12 @@
       </el-form>
     </div>
 
-    <el-table :data="tableData" style="width: 100%" v-loading="loading">
+    <el-table :data="tableData" style="width: 100%" v-loading="loading" @selection-change="handleSelectionChange">
+      <el-table-column type="selection" width="55" />
       <el-table-column prop="id" label="ID" width="60" />
-      <el-table-column label="项目" width="120">
+      <el-table-column label="项目" width="200">
         <template #default="scope">
-          {{ getProjectName(scope.row.projectId) }}
+          {{ getProjectDisplay(scope.row) }}
         </template>
       </el-table-column>
       <el-table-column label="类型" width="100">
@@ -60,32 +66,12 @@
       </el-table-column>
       <el-table-column label="服务器" width="150">
         <template #default="scope">
-          {{ getServerName(scope.row.serverId) }}
+          {{ getServerIp(scope.row.serverId) }}
         </template>
       </el-table-column>
       <el-table-column prop="env" label="环境" width="80" />
-      <el-table-column label="服务别名" width="100">
-        <template #default="scope">
-          <el-tag type="info" size="small">
-            {{ extractServiceAliasFromGitUrl(scope.row.repoGitUrl) }}
-          </el-tag>
-        </template>
-      </el-table-column>
       <el-table-column prop="port" label="端口" width="80" />
       <el-table-column prop="gitBranch" label="分支" width="100" />
-      <el-table-column label="运行时版本" width="120">
-        <template #default="scope">
-          <el-tag v-if="scope.row.nodeVersion" :type="scope.row.repositoryType === 1 ? 'primary' : 'success'" size="small">
-            {{ scope.row.nodeVersion }}
-          </el-tag>
-          <span v-else style="color: #999; font-size: 12px;">默认</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="部署路径" show-overflow-tooltip>
-        <template #default="scope">
-          {{ getFullDeployPath(scope.row) }}
-        </template>
-      </el-table-column>
       <el-table-column prop="runStatus" label="运行状态" width="100">
         <template #default="scope">
           <el-tag :type="getStatusType(scope.row.runStatus)">
@@ -93,36 +79,39 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="lastDeployTime" label="上次发版时间" width="160">
+        <template #default="scope">
+          {{ formatLastDeployTime(scope.row.lastDeployTime) }}
+        </template>
+      </el-table-column>
       <el-table-column label="启用状态" width="120">
         <template #default="scope">
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleEnabled(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="550" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="scope">
-          <el-button-group>
-            <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
-            <!-- 后端和管理后台项目显示：启动/重启、日志、终端 -->
-            <template v-if="scope.row.repositoryType === 1 || scope.row.repositoryType === 2">
-              <el-button size="small" type="warning" @click="handleAction(scope.row, 'restart')">启动/重启</el-button>
-              <el-button size="small" type="info" @click="handleLog(scope.row)">日志</el-button>
-              <el-button size="small" type="default" @click="handleTerminal(scope.row)">终端</el-button>
+          <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
+          <el-dropdown style="margin-left: 10px;" @command="(cmd) => handleMoreCommand(cmd, scope.row)">
+            <el-button size="small">
+              更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <!-- 后端和管理后台项目显示：启动/重启、日志、终端 -->
+                <template v-if="scope.row.repositoryType === 1 || scope.row.repositoryType === 2">
+                  <el-dropdown-item command="restart">启动/重启</el-dropdown-item>
+                  <el-dropdown-item command="log">日志</el-dropdown-item>
+                  <el-dropdown-item command="terminal">终端</el-dropdown-item>
+                </template>
+                <!-- 版本回退子菜单 -->
+                <el-dropdown-item command="rollback_quick">快速回退（上一版本）</el-dropdown-item>
+                <el-dropdown-item command="rollback_history">选择历史版本回退</el-dropdown-item>
+                <el-dropdown-item command="edit" divided>编辑</el-dropdown-item>
+                <el-dropdown-item command="delete" style="color: #f56c6c;">删除</el-dropdown-item>
+              </el-dropdown-menu>
             </template>
-            <el-dropdown @command="(cmd) => handleRollbackCommand(cmd, scope.row)">
-              <el-button size="small" type="danger">
-                版本回退<el-icon class="el-icon--right"><arrow-down /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="quick">快速回退（上一版本）</el-dropdown-item>
-                  <el-dropdown-item command="history">选择历史版本</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-button-group>
-          <el-divider direction="vertical" />
-          <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
-          <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -504,6 +493,7 @@ const projects = ref([])
 const servers = ref([])
 const businessLines = ref([])
 const installedNodeVersions = ref([])  // 已安装的 Node.js 版本列表
+const selectedServices = ref([])  // 选中的服务列表
 
 const queryForm = reactive({
   projectId: '',
@@ -612,13 +602,66 @@ const handleProjectChange = (projectId) => {
 }
 
 const getStatusType = (status) => {
-  const map = { 0: 'info', 1: 'success', 2: 'danger' }
+  const map = {
+    0: 'info',      // 未启动 - 灰色
+    1: 'success',   // 正常 - 绿色
+    2: 'danger',    // 异常 - 红色
+    3: 'warning',   // 发版中 - 橙色
+    4: 'danger'     // 发版失败 - 红色
+  }
   return map[status] || 'info'
 }
 
 const getStatusText = (status) => {
-  const map = { 0: '未启动', 1: '正常', 2: '异常' }
+  const map = {
+    0: '未启动',
+    1: '正常',
+    2: '异常',
+    3: '发版中',
+    4: '发版失败'
+  }
   return map[status] || '未知'
+}
+
+// 格式化上次发版时间
+const formatLastDeployTime = (time) => {
+  if (!time) return '-'
+
+  try {
+    const date = new Date(time)
+    const now = new Date()
+    const diff = now - date
+
+    // 小于1小时
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000)
+      return minutes < 1 ? '刚刚' : `${minutes}分钟前`
+    }
+
+    // 今天
+    if (date.toDateString() === now.toDateString()) {
+      return '今天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    }
+
+    // 昨天
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    if (date.toDateString() === yesterday.toDateString()) {
+      return '昨天 ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+    }
+
+    // 更早
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (e) {
+    console.error('时间格式化失败:', time, e)
+    return time
+  }
 }
 
 const getProjectName = (id) => {
@@ -626,9 +669,42 @@ const getProjectName = (id) => {
   return p ? p.projectName : id
 }
 
+// 获取项目显示文本（项目名称-项目别名）
+const getProjectDisplay = (row) => {
+  const p = projects.value.find(i => i.id === row.projectId)
+  if (!p) return row.projectId
+
+  const projectName = p.projectName
+
+  // 从项目的 repositories 中找到对应的仓库别名
+  // 通过 git仓库地址 + 项目路径 来区分
+  let repoAlias = ''
+  if (p.repositories && Array.isArray(p.repositories)) {
+    const repo = p.repositories.find(r =>
+      r.gitUrl === row.repoGitUrl &&
+      (r.projectPath || '') === (row.projectPath || '')
+    )
+    if (repo && repo.alias) {
+      repoAlias = repo.alias
+    }
+  }
+
+  // 组合显示：项目名称-别名
+  if (repoAlias) {
+    return `${projectName}-${repoAlias}`
+  }
+  return projectName
+}
+
 const getServerName = (id) => {
   const s = servers.value.find(i => i.id === id)
   return s ? s.alias : id
+}
+
+// 获取服务器IP
+const getServerIp = (id) => {
+  const s = servers.value.find(i => i.id === id)
+  return s ? s.ip : id
 }
 
 // 从 Git URL 提取服务别名（仓库名）
@@ -884,6 +960,64 @@ const handleReset = () => {
   fetchData()
 }
 
+// 处理表格选择变化
+const handleSelectionChange = (selection) => {
+  selectedServices.value = selection
+}
+
+// 批量发版
+const handleBatchDeploy = () => {
+  if (selectedServices.value.length === 0) {
+    return ElMessage.warning('请至少选择一个服务')
+  }
+
+  // 检查是否有发版中的服务
+  const deployingServices = selectedServices.value.filter(s => s.runStatus === 3)
+  if (deployingServices.length > 0) {
+    return ElMessage.warning(`${deployingServices.length} 个服务正在发版中，请稍后再试`)
+  }
+
+  // 显示确认对话框
+  const serviceNames = selectedServices.value.map(s => getProjectDisplay(s)).join('、')
+  ElMessageBox.confirm(
+    `确认批量发版以下 ${selectedServices.value.length} 个服务?\n\n${serviceNames}`,
+    '批量发版确认',
+    {
+      type: 'warning',
+      confirmButtonText: '确认发版',
+      cancelButtonText: '取消'
+    }
+  ).then(async () => {
+    try {
+      // 调用批量发版 API
+      const serviceIds = selectedServices.value.map(s => s.id)
+      const res = await request.post('/service/batch-deploy', serviceIds)
+
+      if (res.success) {
+        ElMessage.success(`已提交 ${serviceIds.length} 个服务的发版任务，详细信息去发版记录查看`)
+
+        // 清空选择
+        selectedServices.value = []
+
+        // 发版中时每5秒刷新一次状态
+        const refreshTimer = setInterval(async () => {
+          const hasDeploying = tableData.value.some(item => item.runStatus === 3)
+          if (!hasDeploying) {
+            clearInterval(refreshTimer)
+          }
+          await fetchData()
+        }, 5000)
+
+        fetchData()
+      } else {
+        ElMessage.error(res.message || '批量发版失败')
+      }
+    } catch (err) {
+      ElMessage.error('批量发版请求失败: ' + (err.message || '未知错误'))
+    }
+  }).catch(() => {})
+}
+
 // Socket instances
 const execSocket = ref(null)
 const logSocket = ref(null)
@@ -898,6 +1032,16 @@ const handleAction = (row, action) => {
       request.post(`/service/${row.id}/deploy-async`).then(res => {
         if (res.success) {
           ElMessage.success(res.message || '正在发版，详细信息去发版记录查看')
+
+          // 发版中时每5秒刷新一次状态
+          const refreshTimer = setInterval(async () => {
+            const currentData = tableData.value.find(item => item.id === row.id)
+            if (currentData && currentData.runStatus !== 3) {
+              clearInterval(refreshTimer)
+            }
+            await fetchData()
+          }, 5000)
+
           fetchData()
         } else {
           ElMessage.error(res.message || '发版失败')
@@ -1041,7 +1185,34 @@ const handleRollback = (row) => {
   }).catch(() => {})
 }
 
-// 处理回退命令（快速回退或选择历史版本）
+// 处理"更多"下拉菜单的命令
+const handleMoreCommand = (command, row) => {
+  switch (command) {
+    case 'restart':
+      handleAction(row, 'restart')
+      break
+    case 'log':
+      handleLog(row)
+      break
+    case 'terminal':
+      handleTerminal(row)
+      break
+    case 'rollback_quick':
+      handleRollback(row)
+      break
+    case 'rollback_history':
+      openVersionHistory(row)
+      break
+    case 'edit':
+      handleEdit(row)
+      break
+    case 'delete':
+      handleDelete(row)
+      break
+  }
+}
+
+// 处理回退命令（快速回退或选择历史版本）- 保留用于兼容
 const handleRollbackCommand = (command, row) => {
   if (command === 'quick') {
     handleRollback(row)

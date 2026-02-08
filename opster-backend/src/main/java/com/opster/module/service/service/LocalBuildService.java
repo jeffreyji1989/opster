@@ -1,5 +1,6 @@
 package com.opster.module.service.service;
 
+import com.opster.common.LocalDeploymentLogger;
 import com.opster.common.enums.RepositoryType;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -25,6 +26,7 @@ public interface LocalBuildService {
      * @param username Git认证用户名（可选）
      * @param password Git认证密码（可选）
      * @param nodeVersion Node.js 版本号（可选），仅前端项目有效
+     * @param deploymentLogger 发版日志记录器（可选），用于实时写入发版日志
      * @return 打包产物的本地路径（jar文件或zip文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -38,7 +40,8 @@ public interface LocalBuildService {
                       WebSocketSession wsSession,
                       String username,
                       String password,
-                      String nodeVersion) throws Exception;
+                      String nodeVersion,
+                      LocalDeploymentLogger deploymentLogger) throws Exception;
 
     /**
      * 执行本地Maven打包
@@ -53,6 +56,7 @@ public interface LocalBuildService {
      * @param username Git认证用户名（可选）
      * @param password Git认证密码（可选）
      * @param jdkVersion JDK版本（可选）：jdk8、jdk17
+     * @param deploymentLogger 发版日志记录器（可选），用于实时写入发版日志
      * @return 打包产物的本地路径（jar文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -65,7 +69,8 @@ public interface LocalBuildService {
                            WebSocketSession wsSession,
                            String username,
                            String password,
-                           String jdkVersion) throws Exception;
+                           String jdkVersion,
+                           LocalDeploymentLogger deploymentLogger) throws Exception;
 
     /**
      * 执行本地npm打包
@@ -80,6 +85,7 @@ public interface LocalBuildService {
      * @param username Git认证用户名（可选）
      * @param password Git认证密码（可选）
      * @param nodeVersion Node.js 版本号（可选），格式：v18.17.0
+     * @param deploymentLogger 发版日志记录器（可选），用于实时写入发版日志
      * @return 打包产物的本地路径（zip文件）
      * @throws Exception 打包过程中发生的异常
      */
@@ -92,7 +98,8 @@ public interface LocalBuildService {
                          WebSocketSession wsSession,
                          String username,
                          String password,
-                         String nodeVersion) throws Exception;
+                         String nodeVersion,
+                         LocalDeploymentLogger deploymentLogger) throws Exception;
 
     /**
      * 清理旧版本的打包产物

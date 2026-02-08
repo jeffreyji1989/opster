@@ -34,7 +34,7 @@ public class LocalDeploymentLogger implements AutoCloseable {
      */
     public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath, WebSocketSession wsSession) {
         this.wsSession = wsSession;
-        this.logFile = createLogFile(projectCode, serviceAlias, deployPath);
+        this.logFile = createLogFile(projectCode, serviceAlias, deployPath, null);
         this.writer = createWriter();
     }
 
@@ -46,7 +46,20 @@ public class LocalDeploymentLogger implements AutoCloseable {
      */
     public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath) {
         this.wsSession = null;
-        this.logFile = createLogFile(projectCode, serviceAlias, deployPath);
+        this.logFile = createLogFile(projectCode, serviceAlias, deployPath, null);
+        this.writer = createWriter();
+    }
+
+    /**
+     * 构造函数（带 serviceId - 用于批量部署区分不同服务）
+     * @param projectCode 项目编码
+     * @param serviceAlias 服务别名
+     * @param deployPath 本地部署根目录
+     * @param serviceId 服务ID，用于区分不同服务的日志
+     */
+    public LocalDeploymentLogger(String projectCode, String serviceAlias, String deployPath, Integer serviceId) {
+        this.wsSession = null;
+        this.logFile = createLogFile(projectCode, serviceAlias, deployPath, serviceId);
         this.writer = createWriter();
     }
 
@@ -55,9 +68,10 @@ public class LocalDeploymentLogger implements AutoCloseable {
      * @param projectCode 项目编码
      * @param serviceAlias 服务别名
      * @param deployPath 本地部署根目录
+     * @param serviceId 服务ID（可选，用于批量部署区分不同服务）
      * @return 日志文件路径
      */
-    private Path createLogFile(String projectCode, String serviceAlias, String deployPath) {
+    private Path createLogFile(String projectCode, String serviceAlias, String deployPath, Integer serviceId) {
         try {
             // 如果没有配置 serviceAlias，使用默认值
             String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
@@ -65,9 +79,15 @@ public class LocalDeploymentLogger implements AutoCloseable {
             Path logDir = Paths.get(deployPath, projectCode, alias, "p_log");
             Files.createDirectories(logDir);
 
-            // 生成日志文件名：yyyyMMddHHmmss.log
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            String fileName = timestamp + ".log";
+            // 生成日志文件名：yyyyMMddHHmmss[_serviceId].log
+            // 如果有 serviceId，则加入文件名以区分不同服务的日志
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS")); // 使用毫秒级时间戳
+            String fileName;
+            if (serviceId != null) {
+                fileName = timestamp + "_service" + serviceId + ".log";
+            } else {
+                fileName = timestamp + ".log";
+            }
 
             Path logFile = logDir.resolve(fileName);
             log.info("创建部署日志文件: {}", logFile);

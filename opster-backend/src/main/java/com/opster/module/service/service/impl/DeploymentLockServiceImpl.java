@@ -30,39 +30,35 @@ public class DeploymentLockServiceImpl implements DeploymentLockService {
     private static final int DEFAULT_LOCK_TIMEOUT_MINUTES = 30;
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public String tryLock(Integer serviceId) {
-        // 1. 清理过期锁
-        cleanExpiredLocks();
-
-        // 2. 检查是否已有锁
+        // 1. 检查是否已有锁
         DeploymentLock existingLock = lockRepository.findByServiceId(serviceId);
         if (existingLock != null) {
             log.warn("Service {} is already locked with lockId: {}", serviceId, existingLock.getLockId());
             return null; // 锁已被占用
         }
 
-        // 3. 创建新锁
+        // 2. 创建新锁
+        DeploymentLock lock = new DeploymentLock();
+        lock.setServiceId(serviceId);
+        lock.setLockId(UUID.randomUUID().toString());
+        lock.setCreateTime(LocalDateTime.now());
+        lock.setExpireTime(LocalDateTime.now().plusMinutes(DEFAULT_LOCK_TIMEOUT_MINUTES));
+
         try {
-            DeploymentLock lock = new DeploymentLock();
-            lock.setServiceId(serviceId);
-            lock.setLockId(UUID.randomUUID().toString());
-            lock.setCreateTime(LocalDateTime.now());
-            lock.setExpireTime(LocalDateTime.now().plusMinutes(DEFAULT_LOCK_TIMEOUT_MINUTES));
-
             lockRepository.save(lock);
-
             log.info("Successfully acquired lock for service {} with lockId: {}", serviceId, lock.getLockId());
             return lock.getLockId();
-
         } catch (Exception e) {
             log.error("Failed to acquire lock for service: {}", serviceId, e);
-            return null;
+            // 重新抛出异常，让事务正确回滚
+            throw new RuntimeException("获取部署锁失败", e);
         }
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void unlock(String lockId) {
         if (lockId == null || lockId.trim().isEmpty()) {
             log.warn("LockId is null or empty, cannot unlock");
@@ -84,7 +80,7 @@ public class DeploymentLockServiceImpl implements DeploymentLockService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void unlockByServiceId(Integer serviceId) {
         try {
             DeploymentLock lock = lockRepository.findByServiceId(serviceId);
@@ -102,8 +98,12 @@ public class DeploymentLockServiceImpl implements DeploymentLockService {
     @Override
     public boolean isLocked(Integer serviceId) {
         try {
-            // 先清理过期锁
-            cleanExpiredLocks();
+            // 先清理过期锁（在独立事务中执行）
+            try {
+                cleanExpiredLocks();
+            } catch (Exception e) {
+                log.warn("Failed to clean expired locks, continuing with lock check: {}", e.getMessage());
+            }
 
             DeploymentLock lock = lockRepository.findByServiceId(serviceId);
             return lock != null;
@@ -114,7 +114,7 @@ public class DeploymentLockServiceImpl implements DeploymentLockService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public int cleanExpiredLocks() {
         try {
             int deletedCount = lockRepository.deleteExpiredLocks(LocalDateTime.now());
@@ -129,7 +129,7 @@ public class DeploymentLockServiceImpl implements DeploymentLockService {
     }
 
     @Override
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public boolean extendLock(String lockId, int additionalMinutes) {
         try {
             DeploymentLock lock = lockRepository.findByLockId(lockId);
