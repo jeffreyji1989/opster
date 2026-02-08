@@ -21,6 +21,7 @@ import com.opster.module.service.service.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
 
@@ -34,6 +35,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 部署编排服务实现类
@@ -80,6 +82,9 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     @Autowired
     private OpsterProperties opsterProperties;
 
+    @Autowired
+    private com.opster.module.service.transfer.pool.SshConnectionPool sshConnectionPool;
+
     @Value("${opster.java-home}")
     private String javaHome;
 
@@ -93,6 +98,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         String lockId = null;
         DeploymentRecord deploymentRecord = null;
         LocalDeploymentLogger logger = null;
+        Session sshSession = null;
+        Server server = null;
 
         try {
             // 1. 获取服务信息
@@ -100,7 +107,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             // 2. 获取 Git URL（提前获取，用于提取服务别名）
@@ -117,6 +124,11 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 logger.log(">>> 该服务正在部署中，请稍后重试");
                 return;
             }
+
+            // 设置服务状态为"发版中"
+            service.setRunStatus(RunStatus.DEPLOYING);
+            appServiceRepository.save(service);
+            logger.log(">>> 服务状态已更新为:发版中");
 
             // 4. 创建部署记录（使用本地日志路径）
             deploymentRecord = new DeploymentRecord();
@@ -151,7 +163,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 wsSession,
                 gitUsername,
                 gitPassword,
-                service.getNodeVersion()  // 传递 Node.js 版本
+                service.getNodeVersion(),  // 传递 Node.js 版本
+                logger  // 传递发版日志记录器，实现实时写入
             );
 
             // 验证打包产物是否生成成功
@@ -160,33 +173,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             long artifactSize = java.nio.file.Files.size(artifact);
-
-            // 将构建日志内容追加到发版日志中
-            Path buildLogFile = localBuildService.getLatestBuildLogFile(
-                projectCode,
-                extractServiceAliasFromGitUrl(gitUrl),
-                service.getRepositoryType() != null ?
-                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND
-            );
-            if (buildLogFile != null && Files.exists(buildLogFile)) {
-                logger.log(">>> ================ 构建详细日志 ================");
-                try (BufferedReader reader = Files.newBufferedReader(buildLogFile, StandardCharsets.UTF_8)) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        logger.log(line);
-                    }
-                } catch (Exception e) {
-                    log.warn("读取构建日志失败: {}", e.getMessage());
-                }
-                logger.log(">>> ============== 构建详细日志结束 ==============");
-            }
-
             logger.log(">>> 本地打包完成! 产物: " + artifact.getFileName().toString() + " (" + (artifactSize / 1024 / 1024) + " MB)");
 
             // 6. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
             logger.log(">>> 已连接");
 
             // 7. 创建远程目录结构（不包含p_log，日志在本地记录）
@@ -231,12 +223,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 if (isHealthy) {
                     logger.log(">>> 部署成功完成！");
                     service.setRunStatus(RunStatus.NORMAL);
+                    service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                     deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
                 } else {
                     throw new Exception("服务启动失败，端口未监听");
                 }
             } else {
                 logger.log(">>> 部署完成（未配置端口，跳过健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                 deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
             }
 
@@ -260,6 +255,20 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 deploymentRecordService.update(deploymentRecord);
             }
 
+            // 更新服务状态为"发版失败"
+            try {
+                AppService failedService = appServiceRepository.findById(serviceId).orElse(null);
+                if (failedService != null) {
+                    failedService.setRunStatus(RunStatus.DEPLOY_FAILED);
+                    appServiceRepository.save(failedService);
+                    if (logger != null) {
+                        logger.log(">>> 服务状态已更新为:发版失败");
+                    }
+                }
+            } catch (Exception statusUpdateException) {
+                log.error("Failed to update service status to DEPLOY_FAILED", statusUpdateException);
+            }
+
             // 自动回滚
             try {
                 if (logger != null) {
@@ -273,6 +282,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
         } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
             if (logger != null) {
                 logger.close();
             }
@@ -289,15 +302,18 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     @Override
     public void executeRestart(Integer serviceId, WebSocketSession wsSession) {
+        Session sshSession = null;
+        Server server = null;
+
         try {
             AppService service = appServiceRepository.findById(serviceId)
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
             sendMessage(wsSession, ">>> 已连接");
 
             sendMessage(wsSession, ">>> 重启服务...");
@@ -322,6 +338,11 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         } catch (Exception e) {
             log.error("Restart failed for service: {}", serviceId, e);
             sendMessage(wsSession, ">>> 重启失败: " + e.getMessage());
+        } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
         }
 
         sendMessage(wsSession, ">>> Done.");
@@ -330,12 +351,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     @Override
     public void executeRollback(Integer serviceId, WebSocketSession wsSession) {
         String lockId = null;
+        Session sshSession = null;
+        Server server = null;
+
         try {
             AppService service = appServiceRepository.findById(serviceId)
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             // 获取锁
@@ -346,8 +370,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
 
             String remoteDir = buildRemoteDir(project, service);
 
@@ -375,6 +399,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             log.error("Rollback failed for service: {}", serviceId, e);
             sendMessage(wsSession, ">>> 回滚失败: " + e.getMessage());
         } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
             if (lockId != null) {
                 deploymentLockService.unlock(lockId);
             }
@@ -389,15 +417,18 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     @Override
     public void executeStop(Integer serviceId, WebSocketSession wsSession) {
+        Session sshSession = null;
+        Server server = null;
+
         try {
             AppService service = appServiceRepository.findById(serviceId)
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             sendMessage(wsSession, ">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
 
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
@@ -416,6 +447,11 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         } catch (Exception e) {
             log.error("Stop failed for service: {}", serviceId, e);
             sendMessage(wsSession, ">>> 停止失败: " + e.getMessage());
+        } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
         }
 
         sendMessage(wsSession, ">>> Done.");
@@ -425,11 +461,14 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     public void rollbackToSpecificVersion(Integer recordId, WebSocketSession wsSession) {
         String lockId = null;
         DeploymentRecord rollbackRecord = null;
+        DeploymentRecord targetRecord = null;
         LocalDeploymentLogger logger = null;
+        Session sshSession = null;
+        Server server = null;
 
         try {
             // 1. 获取目标版本记录
-            DeploymentRecord targetRecord = deploymentRecordService.getById(recordId);
+            targetRecord = deploymentRecordService.getById(recordId);
             if (targetRecord == null) {
                 sendMessage(wsSession, ">>> 部署记录不存在: " + recordId);
                 return;
@@ -447,7 +486,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             // 3. 获取 Git URL（提前获取，用于提取服务别名）
@@ -465,10 +504,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 return;
             }
 
+            // 设置服务状态为"发版中"
+            service.setRunStatus(RunStatus.DEPLOYING);
+            appServiceRepository.save(service);
+            logger.log(">>> 服务状态已更新为:发版中");
+
             // 5. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
 
             String remoteDir = buildRemoteDir(project, service);
 
@@ -532,12 +576,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 if (isHealthy) {
                     logger.log(">>> 回退成功完成！");
                     service.setRunStatus(RunStatus.NORMAL);
+                    service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                     rollbackRecord.setStatus(DeploymentStatus.COMPLETED);
                 } else {
                     throw new Exception("回退后服务启动失败");
                 }
             } else {
                 logger.log(">>> 回退完成（未配置端口，跳过健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                 rollbackRecord.setStatus(DeploymentStatus.COMPLETED);
             }
 
@@ -557,7 +604,26 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 deploymentRecordService.update(rollbackRecord);
             }
 
+            // 更新服务状态为"发版失败"
+            try {
+                Integer serviceId = targetRecord.getServiceId();
+                AppService failedService = appServiceRepository.findById(serviceId).orElse(null);
+                if (failedService != null) {
+                    failedService.setRunStatus(RunStatus.DEPLOY_FAILED);
+                    appServiceRepository.save(failedService);
+                    if (logger != null) {
+                        logger.log(">>> 服务状态已更新为:发版失败");
+                    }
+                }
+            } catch (Exception statusUpdateException) {
+                log.error("Failed to update service status to DEPLOY_FAILED", statusUpdateException);
+            }
+
         } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
             if (logger != null) {
                 logger.close();
             }
@@ -1293,6 +1359,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     private Integer doExecuteDeployment(Integer serviceId, LocalDeploymentLogger logger) throws Exception {
         String lockId = null;
         DeploymentRecord deploymentRecord = null;
+        Session sshSession = null;
+        Server server = null;
 
         try {
             // 1. 获取服务信息
@@ -1300,18 +1368,28 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             String projectCode = project.getProjectCode();
 
             // 2. 获取部署锁
             logger.log(">>> 获取部署锁...");
-            lockId = deploymentLockService.tryLock(serviceId);
-            if (lockId == null) {
-                logger.log(">>> 该服务正在部署中，请稍后重试");
-                throw new Exception("服务正在部署中");
+            try {
+                lockId = deploymentLockService.tryLock(serviceId);
+                if (lockId == null) {
+                    logger.log(">>> 该服务正在部署中，请稍后重试");
+                    throw new Exception("服务正在部署中");
+                }
+            } catch (RuntimeException e) {
+                logger.log(">>> 获取部署锁失败: " + e.getMessage());
+                throw new Exception("获取部署锁失败: " + e.getMessage(), e);
             }
+
+            // 设置服务状态为"发版中"
+            service.setRunStatus(RunStatus.DEPLOYING);
+            appServiceRepository.save(service);
+            logger.log(">>> 服务状态已更新为:发版中");
 
             // 3. 创建部署记录（使用本地日志路径）
             deploymentRecord = new DeploymentRecord();
@@ -1346,7 +1424,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 null, // 无 WebSocket
                 gitUsername,
                 gitPassword,
-                service.getNodeVersion()  // 传递 Node.js 版本
+                service.getNodeVersion(),  // 传递 Node.js 版本
+                logger  // 传递发版日志记录器，实现实时写入
             );
 
             // 验证打包产物是否生成成功
@@ -1355,33 +1434,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             long artifactSize = java.nio.file.Files.size(artifact);
-
-            // 将构建日志内容追加到发版日志中
-            Path buildLogFile = localBuildService.getLatestBuildLogFile(
-                projectCode,
-                extractServiceAliasFromGitUrl(gitUrl),
-                service.getRepositoryType() != null ?
-                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND
-            );
-            if (buildLogFile != null && Files.exists(buildLogFile)) {
-                logger.log(">>> ================ 构建详细日志 ================");
-                try (BufferedReader reader = Files.newBufferedReader(buildLogFile, StandardCharsets.UTF_8)) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        logger.log(line);
-                    }
-                } catch (Exception e) {
-                    log.warn("读取构建日志失败: {}", e.getMessage());
-                }
-                logger.log(">>> ============== 构建详细日志结束 ==============");
-            }
-
             logger.log(">>> 本地打包完成! 产物: " + artifact.getFileName().toString() + " (" + (artifactSize / 1024 / 1024) + " MB)");
 
             // 5. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
             logger.log(">>> 已连接");
 
             // 6. 创建远程目录结构（不包含p_log，日志在本地记录）
@@ -1422,12 +1480,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 if (isHealthy) {
                     logger.log(">>> 部署成功完成！");
                     service.setRunStatus(RunStatus.NORMAL);
+                    service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                     deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
                 } else {
                     throw new Exception("服务启动失败，端口未监听");
                 }
             } else {
                 logger.log(">>> 部署完成（未配置端口，跳过健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                 deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
             }
 
@@ -1447,9 +1508,26 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 deploymentRecord.setStatus(DeploymentStatus.FAILED);
                 deploymentRecordService.update(deploymentRecord);
             }
+
+            // 更新服务状态为"发版失败"
+            try {
+                AppService failedService = appServiceRepository.findById(serviceId).orElse(null);
+                if (failedService != null) {
+                    failedService.setRunStatus(RunStatus.DEPLOY_FAILED);
+                    appServiceRepository.save(failedService);
+                    logger.log(">>> 服务状态已更新为:发版失败");
+                }
+            } catch (Exception statusUpdateException) {
+                log.error("Failed to update service status to DEPLOY_FAILED", statusUpdateException);
+            }
+
             throw e;
 
         } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
             if (lockId != null) {
                 deploymentLockService.unlock(lockId);
             }
@@ -1464,10 +1542,13 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     private Integer doRollbackToSpecificVersion(Integer recordId, LocalDeploymentLogger logger) throws Exception {
         String lockId = null;
         DeploymentRecord rollbackRecord = null;
+        DeploymentRecord targetRecord = null;
+        Session sshSession = null;
+        Server server = null;
 
         try {
             // 1. 获取目标版本记录
-            DeploymentRecord targetRecord = deploymentRecordService.getById(recordId);
+            targetRecord = deploymentRecordService.getById(recordId);
             if (targetRecord == null) {
                 throw new Exception("部署记录不存在: " + recordId);
             }
@@ -1483,7 +1564,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 .orElseThrow(() -> new Exception("服务不存在: " + serviceId));
             Project project = projectRepository.findById(service.getProjectId())
                 .orElseThrow(() -> new Exception("项目不存在: " + service.getProjectId()));
-            Server server = serverRepository.findById(service.getServerId())
+            server = serverRepository.findById(service.getServerId())
                 .orElseThrow(() -> new Exception("服务器不存在: " + service.getServerId()));
 
             String projectCode = project.getProjectCode();
@@ -1496,10 +1577,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 throw new Exception("服务正在部署中");
             }
 
+            // 设置服务状态为"发版中"
+            service.setRunStatus(RunStatus.DEPLOYING);
+            appServiceRepository.save(service);
+            logger.log(">>> 服务状态已更新为:发版中");
+
             // 4. 连接远程服务器
             logger.log(">>> 连接远程服务器 " + server.getIp() + "...");
-            // SshUtils.connect 内部会自动解密密码
-            Session sshSession = SshUtils.connect(server.getIp(), 22, server.getUsername(), server.getPassword());
+            // 从连接池获取连接
+            sshSession = sshConnectionPool.borrowObject(server);
 
             String remoteDir = buildRemoteDir(project, service);
 
@@ -1554,12 +1640,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 if (isHealthy) {
                     logger.log(">>> 回退成功完成！");
                     service.setRunStatus(RunStatus.NORMAL);
+                    service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                     rollbackRecord.setStatus(DeploymentStatus.COMPLETED);
                 } else {
                     throw new Exception("回退后服务启动失败");
                 }
             } else {
                 logger.log(">>> 回退完成（未配置端口，跳过健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
                 rollbackRecord.setStatus(DeploymentStatus.COMPLETED);
             }
 
@@ -1576,9 +1665,27 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 rollbackRecord.setStatus(DeploymentStatus.FAILED);
                 deploymentRecordService.update(rollbackRecord);
             }
+
+            // 更新服务状态为"发版失败"
+            try {
+                Integer serviceId = targetRecord.getServiceId();
+                AppService failedService = appServiceRepository.findById(serviceId).orElse(null);
+                if (failedService != null) {
+                    failedService.setRunStatus(RunStatus.DEPLOY_FAILED);
+                    appServiceRepository.save(failedService);
+                    logger.log(">>> 服务状态已更新为:发版失败");
+                }
+            } catch (Exception statusUpdateException) {
+                log.error("Failed to update service status to DEPLOY_FAILED", statusUpdateException);
+            }
+
             throw e;
 
         } finally {
+            // 归还 SSH 连接到池
+            if (sshSession != null && server != null) {
+                sshConnectionPool.returnObject(server, sshSession);
+            }
             if (lockId != null) {
                 deploymentLockService.unlock(lockId);
             }
@@ -1587,7 +1694,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     }
 
     @Override
-    public Integer executeDeploymentAsync(Integer serviceId) {
+    @Async("deploymentExecutor")
+    public CompletableFuture<Integer> executeDeploymentAsync(Integer serviceId) {
         // 获取服务信息
         AppService service = appServiceRepository.findById(serviceId)
             .orElseThrow(() -> new RuntimeException("服务不存在: " + serviceId));
@@ -1599,15 +1707,19 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
         // 创建本地日志记录器（无 WebSocket）
         try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
-            return doExecuteDeployment(serviceId, logger);
+            Integer result = doExecuteDeployment(serviceId, logger);
+            return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             log.error("Async deployment failed for service: {}", serviceId, e);
-            throw new RuntimeException("部署失败: " + e.getMessage(), e);
+            CompletableFuture<Integer> future = new CompletableFuture<>();
+            future.completeExceptionally(new RuntimeException("部署失败: " + e.getMessage(), e));
+            return future;
         }
     }
 
     @Override
-    public Integer rollbackToSpecificVersionAsync(Integer recordId) {
+    @Async("deploymentExecutor")
+    public CompletableFuture<Integer> rollbackToSpecificVersionAsync(Integer recordId) {
         // 获取目标版本记录
         DeploymentRecord targetRecord = deploymentRecordService.getById(recordId);
         if (targetRecord == null) {
@@ -1625,10 +1737,13 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
         // 创建本地日志记录器（无 WebSocket）
         try (LocalDeploymentLogger logger = new LocalDeploymentLogger(projectCode, extractServiceAliasFromGitUrl(gitUrl), opsterProperties.getDeployPath())) {
-            return doRollbackToSpecificVersion(recordId, logger);
+            Integer result = doRollbackToSpecificVersion(recordId, logger);
+            return CompletableFuture.completedFuture(result);
         } catch (Exception e) {
             log.error("Async rollback failed for record: {}", recordId, e);
-            throw new RuntimeException("回退失败: " + e.getMessage(), e);
+            CompletableFuture<Integer> future = new CompletableFuture<>();
+            future.completeExceptionally(new RuntimeException("回退失败: " + e.getMessage(), e));
+            return future;
         }
     }
 }
