@@ -1,67 +1,68 @@
 package com.opster.module.service.service.impl;
 
-import com.jcraft.jsch.*;
+import com.jcraft.jsch.ChannelExec;
+import com.jcraft.jsch.Session;
 import com.opster.module.service.service.FileTransferService;
+import com.opster.module.service.transfer.strategy.ScpTransferStrategy;
+import com.opster.module.service.transfer.strategy.TransferStrategy;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
  * 文件传输服务实现类
- * 通过SCP协议上传文件到远程服务器
+ * 整合传输策略、连接池、检查器等组件
+ * 使用策略模式委托具体的传输逻辑给 TransferStrategy
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FileTransferServiceImpl implements FileTransferService {
+
+    private final ScpTransferStrategy scpTransferStrategy;
 
     /**
      * 默认重试次数
      */
     private static final int DEFAULT_MAX_RETRIES = 3;
 
-    /**
-     * 上传缓冲区大小（1MB）
-     */
-    private static final int BUFFER_SIZE = 1024 * 1024;
-
-    /**
-     * 进度推送间隔（每10%推送一次）
-     */
-    private static final int PROGRESS_INTERVAL = 10;
-
     @Override
     public void uploadFile(Path localFile, Session sshSession, String remotePath,
                           WebSocketSession wsSession) throws Exception {
-        uploadFileWithRetry(localFile, sshSession, remotePath, DEFAULT_MAX_RETRIES, wsSession);
+        log.info("开始文件传输: {} -> {}", localFile, remotePath);
+
+        // 选择传输策略（目前仅支持 SCP）
+        TransferStrategy strategy = selectStrategy(wsSession);
+        strategy.transfer(localFile, sshSession, remotePath, wsSession);
+
+        log.info("文件传输完成: {} -> {}", localFile, remotePath);
     }
 
     @Override
     public void uploadAndExtractZip(Path localZip, Session sshSession,
                                    String remoteDir, WebSocketSession wsSession) throws Exception {
         try {
-            // 1. 上传zip文件
+            // 1. 上传 zip 文件
             String remoteZipPath = remoteDir + "/" + localZip.getFileName().toString();
-            sendMessage(wsSession, ">>> 开始上传zip文件: " + localZip.getFileName());
+            sendMessage(wsSession, ">>> 开始上传 zip 文件: " + localZip.getFileName());
             uploadFile(localZip, sshSession, remoteZipPath, wsSession);
 
-            // 2. 解压zip文件
-            sendMessage(wsSession, ">>> 开始解压zip文件...");
+            // 2. 解压 zip 文件
+            sendMessage(wsSession, ">>> 开始解压 zip 文件...");
             String unzipCommand = String.format("cd %s && unzip -o %s && rm -f %s",
                 remoteDir, remoteZipPath, remoteZipPath);
             executeRemoteCommand(sshSession, unzipCommand, wsSession);
 
-            sendMessage(wsSession, ">>> zip文件上传并解压完成");
+            sendMessage(wsSession, ">>> zip 文件上传并解压完成");
 
         } catch (Exception e) {
             log.error("Failed to upload and extract zip file", e);
-            sendMessage(wsSession, ">>> zip文件上传或解压失败: " + e.getMessage());
+            sendMessage(wsSession, ">>> zip 文件上传或解压失败: " + e.getMessage());
             throw e;
         }
     }
@@ -74,17 +75,16 @@ public class FileTransferServiceImpl implements FileTransferService {
 
         while (attempt < maxRetries) {
             try {
-                // 检查本地文件是否存在
                 if (!Files.exists(localFile)) {
                     sendMessage(wsSession, ">>> 错误：本地文件不存在: " + localFile);
                     return false;
                 }
 
                 long fileSize = Files.size(localFile);
-                sendMessage(wsSession, ">>> 开始上传文件: " + localFile.getFileName() + " (" + formatFileSize(fileSize) + ")");
+                sendMessage(wsSession, ">>> 开始上传文件: " + localFile.getFileName() +
+                    " (" + formatFileSize(fileSize) + ")");
 
-                // 执行SCP上传
-                performScpUpload(localFile, sshSession, remotePath, wsSession);
+                uploadFile(localFile, sshSession, remotePath, wsSession);
 
                 sendMessage(wsSession, ">>> 文件上传完成");
                 return true;
@@ -97,7 +97,7 @@ public class FileTransferServiceImpl implements FileTransferService {
                 if (attempt < maxRetries) {
                     sendMessage(wsSession, ">>> 上传失败，正在重试 (" + attempt + "/" + maxRetries + ")...");
                     try {
-                        Thread.sleep(2000); // 等待2秒后重试
+                        Thread.sleep(2000);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         break;
@@ -106,7 +106,6 @@ public class FileTransferServiceImpl implements FileTransferService {
             }
         }
 
-        // 所有重试都失败
         sendMessage(wsSession, ">>> 上传失败，已达到最大重试次数: " + maxRetries);
         if (lastException != null) {
             sendMessage(wsSession, ">>> 错误信息: " + lastException.getMessage());
@@ -123,108 +122,30 @@ public class FileTransferServiceImpl implements FileTransferService {
     }
 
     /**
-     * 执行SCP上传
+     * 选择传输策略
+     * 目前仅支持 SCP，未来可扩展 SFTP、FTP 等
+     *
+     * @param wsSession WebSocket 会话
+     * @return 传输策略
      */
-    private void performScpUpload(Path localFile, Session sshSession, String remotePath,
-                                 WebSocketSession wsSession) throws Exception {
-        String command = "scp -t " + remotePath;
-        ChannelExec channel = null;
-        InputStream in = null;
-        OutputStream out = null;
-
-        try {
-            // 打开SCP通道
-            channel = (ChannelExec) sshSession.openChannel("exec");
-            channel.setCommand(command);
-
-            // 获取输入输出流
-            out = channel.getOutputStream();
-            in = channel.getInputStream();
-
-            channel.connect();
-
-            // 检查服务器响应
-            checkAck(in);
-
-            // 发送文件信息
-            long fileSize = Files.size(localFile);
-            String fileName = localFile.getFileName().toString();
-            String fileInfo = "C0644 " + fileSize + " " + fileName + "\n";
-            out.write(fileInfo.getBytes());
-            out.flush();
-
-            // 检查服务器响应
-            checkAck(in);
-
-            // 发送文件内容
-            FileInputStream fis = new FileInputStream(localFile.toFile());
-            byte[] buffer = new byte[BUFFER_SIZE];
-            long totalUploaded = 0;
-            int lastProgress = 0;
-
-            int bytesRead;
-            while ((bytesRead = fis.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
-                totalUploaded += bytesRead;
-
-                // 计算并推送进度
-                int progress = calculateProgress(totalUploaded, fileSize);
-                if (progress >= lastProgress + PROGRESS_INTERVAL || progress == 100) {
-                    sendMessage(wsSession, ">>> 上传进度: " + progress + "%");
-                    lastProgress = progress;
-                }
-            }
-
-            fis.close();
-            out.flush();
-
-            // 发送结束标志
-            buffer[0] = 0;
-            out.write(buffer, 0, 1);
-            out.flush();
-
-            // 检查服务器响应
-            checkAck(in);
-
-        } finally {
-            if (out != null) {
-                try { out.close(); } catch (Exception ignored) {}
-            }
-            if (in != null) {
-                try { in.close(); } catch (Exception ignored) {}
-            }
-            if (channel != null) {
-                channel.disconnect();
-            }
-        }
-    }
-
-    /**
-     * 检查SCP服务器的ACK响应
-     */
-    private void checkAck(InputStream in) throws Exception {
-        int b = in.read();
-        if (b == 0) {
-            return; // 成功
-        } else if (b == -1) {
-            throw new Exception("SCP connection lost");
-        } else if (b == 1 || b == 2) {
-            StringBuilder sb = new StringBuilder();
-            int c;
-            while ((c = in.read()) != '\n') {
-                sb.append((char) c);
-            }
-            throw new Exception("SCP error: " + sb.toString());
-        }
+    private TransferStrategy selectStrategy(WebSocketSession wsSession) {
+        sendMessage(wsSession, ">>> 使用 SCP 传输策略");
+        return scpTransferStrategy;
     }
 
     /**
      * 执行远程命令
+     * 用于执行 unzip 等远程操作命令
+     *
+     * @param sshSession SSH 会话
+     * @param command 要执行的命令
+     * @param wsSession WebSocket 会话，用于推送输出
+     * @throws Exception 执行失败时抛出异常
      */
     private void executeRemoteCommand(Session sshSession, String command, WebSocketSession wsSession)
             throws Exception {
         ChannelExec channel = null;
-        InputStream in = null;
+        java.io.InputStream in = null;
 
         try {
             channel = (ChannelExec) sshSession.openChannel("exec");
@@ -262,6 +183,10 @@ public class FileTransferServiceImpl implements FileTransferService {
 
     /**
      * 格式化文件大小
+     * 将字节数转换为人类可读的格式
+     *
+     * @param size 文件大小（字节）
+     * @return 格式化后的字符串
      */
     private String formatFileSize(long size) {
         if (size < 1024) {
@@ -276,7 +201,10 @@ public class FileTransferServiceImpl implements FileTransferService {
     }
 
     /**
-     * 发送消息到WebSocket
+     * 发送消息到 WebSocket
+     *
+     * @param session WebSocket 会话
+     * @param message 要发送的消息
      */
     private void sendMessage(WebSocketSession session, String message) {
         try {
