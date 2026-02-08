@@ -18,9 +18,24 @@ import java.util.Properties;
 public class SshUtils {
 
     /**
-     * 获取 SSH Session
+     * 获取 SSH Session（使用默认配置）
      */
     public static Session connect(String host, int port, String user, String password) throws Exception {
+        return connect(host, port, user, password, 30000, 300000);
+    }
+
+    /**
+     * 获取 SSH Session（使用自定义配置）
+     *
+     * @param host 主机地址
+     * @param port 端口
+     * @param user 用户名
+     * @param password 密码（加密）
+     * @param connectionTimeout 连接超时（毫秒）
+     * @param sessionTimeout Session 超时（毫秒）
+     */
+    public static Session connect(String host, int port, String user, String password,
+                                 int connectionTimeout, int sessionTimeout) throws Exception {
         JSch jsch = new JSch();
         Session session = jsch.getSession(user, host, port);
 
@@ -42,18 +57,19 @@ public class SshUtils {
 
         session.setPassword(decryptedPassword);
 
-        // 配置 SSH 连接参数（使用最基本的配置，避免兼容性问题）
+        // 配置 SSH 连接参数
         Properties config = new Properties();
         // 禁用严格主机密钥检查
         config.put("StrictHostKeyChecking", "no");
-
         // 设置认证方式（优先使用密码认证）
         config.put("PreferredAuthentications", "password,publickey,keyboard-interactive");
 
         session.setConfig(config);
-        session.setTimeout(30000); // 30s timeout
+        session.setTimeout(connectionTimeout);
+        session.setServerAliveInterval(30000); // 30秒保活间隔
+        session.setServerAliveCountMax(3);    // 最多3次保活失败
 
-        log.info("开始连接 SSH 服务器: {}:{}", host, port);
+        log.info("开始连接 SSH 服务器: {}:{}, 连接超时: {}ms, Session超时: {}ms", host, port, connectionTimeout, sessionTimeout);
         try {
             session.connect();
             log.info("SSH 连接成功: {}:{}", host, port);
@@ -63,6 +79,33 @@ public class SshUtils {
         }
 
         return session;
+    }
+
+    /**
+     * 检查 Session 是否连接且可用
+     *
+     * @param session SSH 会话
+     * @return true 如果连接可用，否则 false
+     */
+    public static boolean isConnected(Session session) {
+        if (session == null || !session.isConnected()) {
+            return false;
+        }
+
+        try {
+            // 尝试执行一个简单命令来验证连接
+            ChannelExec channel = (ChannelExec) session.openChannel("exec");
+            channel.setCommand("echo OK");
+            InputStream in = channel.getInputStream();
+            channel.connect();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+            String response = reader.readLine();
+            channel.disconnect();
+            return "OK".equals(response);
+        } catch (Exception e) {
+            log.warn("SSH 连接检查失败: {}", e.getMessage());
+            return false;
+        }
     }
 
     /**
