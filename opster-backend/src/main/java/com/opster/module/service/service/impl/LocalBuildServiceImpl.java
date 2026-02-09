@@ -758,6 +758,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         // 使用系统命令压缩（Unix/Mac使用zip命令，Windows使用PowerShell）
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
 
+        Process process;
+        int exitCode;
+
         if (isWindows) {
             // Windows使用PowerShell压缩
             String cmd = String.format(
@@ -765,17 +768,52 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 sourceDir, zipFile
             );
             ProcessBuilder pb = new ProcessBuilder("powershell", "-Command", cmd);
-            Process process = pb.start();
-            process.waitFor();
+            pb.redirectErrorStream(true);
+            process = pb.start();
+            exitCode = process.waitFor();
         } else {
             // Unix/Mac使用zip命令
-            String cmd = String.format("cd %s && zip -r %s .", sourceDir, zipFile);
+            String cmd = String.format("cd %s && zip -rq %s .", sourceDir, zipFile);
             ProcessBuilder pb = new ProcessBuilder("bash", "-c", cmd);
-            Process process = pb.start();
-            process.waitFor();
+            pb.redirectErrorStream(true);
+            process = pb.start();
+            exitCode = process.waitFor();
         }
 
-        log.info("Compressed {} to {}", sourceDir, zipFile);
+        // 检查进程退出码
+        if (exitCode != 0) {
+            // 读取错误输出
+            java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(process.getInputStream())
+            );
+            StringBuilder errorOutput = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                errorOutput.append(line).append("\n");
+            }
+            reader.close();
+
+            throw new Exception(String.format(
+                "压缩命令执行失败，退出码: %d，错误信息: %s",
+                exitCode, errorOutput.toString()
+            ));
+        }
+
+        // 验证压缩文件是否生成成功
+        if (!Files.exists(zipFile) || !Files.isRegularFile(zipFile)) {
+            throw new Exception("压缩文件生成失败: " + zipFile);
+        }
+
+        // 验证压缩文件大小（至少应该大于1KB）
+        long fileSize = Files.size(zipFile);
+        if (fileSize < 1024) {
+            throw new Exception(String.format(
+                "压缩文件大小异常: %d bytes，文件可能损坏: %s",
+                fileSize, zipFile
+            ));
+        }
+
+        log.info("Compressed {} to {} ({} bytes)", sourceDir, zipFile, fileSize);
     }
 
     /**
