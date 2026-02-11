@@ -631,9 +631,48 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 查找Maven打包产物（jar文件）
+     * 支持单模块和多模块项目，递归查找所有子模块的 target 目录
      */
     private Path findMavenArtifact(Path projectRoot) {
-        Path targetDir = projectRoot.resolve("target");
+        // 1. 首先尝试在根目录的 target 中查找（单模块项目）
+        Path rootTargetDir = projectRoot.resolve("target");
+        if (Files.exists(rootTargetDir)) {
+            Path jarInRoot = findJarInTargetDir(rootTargetDir);
+            if (jarInRoot != null) {
+                log.info("在根目录 target 中找到 jar 文件: {}", jarInRoot);
+                return jarInRoot;
+            }
+        }
+
+        // 2. 如果根目录未找到，递归查找所有子模块的 target 目录（多模块项目）
+        log.info("根目录 target 中未找到 jar 文件，开始递归查找子模块...");
+        try (Stream<Path> paths = Files.walk(projectRoot, 4)) {
+            return paths
+                .filter(Files::isDirectory)
+                .filter(dir -> dir.getFileName().toString().equals("target"))
+                .map(this::findJarInTargetDir)
+                .filter(jar -> jar != null)
+                .max(Comparator.comparingLong(file -> {
+                    try {
+                        return Files.size(file);
+                    } catch (Exception e) {
+                        return 0L;
+                    }
+                }))
+                .orElse(null);
+        } catch (Exception e) {
+            log.error("递归查找 jar 文件时发生错误", e);
+            return null;
+        }
+    }
+
+    /**
+     * 在指定的 target 目录中查找 jar 文件
+     *
+     * @param targetDir target 目录路径
+     * @return 找到的 jar 文件路径，如果没有找到则返回 null
+     */
+    private Path findJarInTargetDir(Path targetDir) {
         if (!Files.exists(targetDir)) {
             return null;
         }
@@ -641,13 +680,14 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         try (Stream<Path> paths = Files.list(targetDir)) {
             return paths
                 .filter(Files::isRegularFile)
-                .filter(p -> p.toString().endsWith(".jar"))
-                .filter(p -> !p.toString().contains("-sources.jar"))
-                .filter(p -> !p.toString().contains("-javadoc.jar"))
+                .filter(p -> p.getFileName().toString().endsWith(".jar"))
+                .filter(p -> !p.getFileName().toString().contains("-sources.jar"))
+                .filter(p -> !p.getFileName().toString().contains("-javadoc.jar"))
+                .filter(p -> !p.getFileName().toString().contains("-repack.jar")) // Spring Boot repackaged
                 .findFirst()
                 .orElse(null);
         } catch (Exception e) {
-            log.error("Error finding Maven artifact", e);
+            log.error("在目录 {} 中查找 jar 文件时发生错误", targetDir, e);
             return null;
         }
     }
