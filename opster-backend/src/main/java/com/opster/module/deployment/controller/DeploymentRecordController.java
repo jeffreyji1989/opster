@@ -65,6 +65,16 @@ public class DeploymentRecordController {
     }
 
     /**
+     * 获取服务的所有发版记录（包括回退记录），按发版时间倒序
+     * @param serviceId 服务ID
+     * @return 发版记录列表
+     */
+    @GetMapping("/service/{serviceId}/records")
+    public List<DeploymentRecord> getServiceRecords(@PathVariable Integer serviceId) {
+        return deploymentRecordService.getServiceRecords(serviceId);
+    }
+
+    /**
      * 更新版本描述和标签
      * @param id 部署记录ID
      * @param request 包含description和tag的请求体

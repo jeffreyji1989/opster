@@ -32,4 +32,20 @@ public interface ScheduledDeploymentRepository extends JpaRepository<ScheduledDe
      * 按创建时间倒序查询所有任务
      */
     List<ScheduledDeployment> findAllByOrderByCreateTimeDesc();
+
+    /**
+     * 查询执行时间在前后2分钟内的待执行任务
+     * 条件：status = 0 AND executeDate = currentDate AND executeTime >= timeBefore AND executeTime <= timeAfter
+     * @param status 状态（0-待执行）
+     * @param date 当前日期（yyyy-MM-dd）
+     * @param timeBefore 前2分钟时间（HH:mm）
+     * @param timeAfter 后2分钟时间（HH:mm）
+     */
+    @Query("SELECT sd FROM ScheduledDeployment sd WHERE sd.status = :status AND sd.executeDate = :date AND sd.executeTime >= :timeBefore AND sd.executeTime <= :timeAfter")
+    List<ScheduledDeployment> findPendingTasksInTimeRange(
+            @Param("status") Integer status,
+            @Param("date") String date,
+            @Param("timeBefore") String timeBefore,
+            @Param("timeAfter") String timeAfter
+    );
 }

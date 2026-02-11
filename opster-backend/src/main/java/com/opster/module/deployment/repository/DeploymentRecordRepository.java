@@ -41,4 +41,11 @@ public interface DeploymentRecordRepository extends JpaRepository<DeploymentReco
             Integer serviceId,
             Boolean isRollback
     );
+
+    /**
+     * 根据服务ID查询所有发版记录（包括回退记录），按创建时间倒序
+     * @param serviceId 服务ID
+     * @return 部署记录列表
+     */
+    List<DeploymentRecord> findByServiceIdOrderByCreateTimeDesc(Integer serviceId);
 }

@@ -86,6 +86,12 @@ public class DeploymentRecordServiceImpl implements DeploymentRecordService {
     }
 
     @Override
+    public List<DeploymentRecord> getServiceRecords(Integer serviceId) {
+        // 获取服务的所有发版记录（包括回退记录），按时间倒序
+        return deploymentRecordRepository.findByServiceIdOrderByCreateTimeDesc(serviceId);
+    }
+
+    @Override
     public void updateVersionInfo(Integer id, String description, String tag) {
         DeploymentRecord record = deploymentRecordRepository.findById(id).orElse(null);
         if (record == null) {

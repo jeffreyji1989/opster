@@ -181,6 +181,7 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
 
     /**
      * 定时扫描并执行待执行的定时发版任务（每1分钟执行一次）
+     * 执行时间在当前时间前后2分钟内的未执行任务
      */
     @Override
     @Scheduled(cron = "0 */1 * * * *")
@@ -193,13 +194,20 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
             String currentDate = now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
             String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm"));
 
-            log.info("Current date: {}, time: {}", currentDate, currentTime);
+            // 计算前2分钟和后2分钟的时间
+            LocalDateTime timeBefore = now.minusMinutes(2);
+            LocalDateTime timeAfter = now.plusMinutes(2);
+            String timeBeforeStr = timeBefore.format(DateTimeFormatter.ofPattern("HH:mm"));
+            String timeAfterStr = timeAfter.format(DateTimeFormatter.ofPattern("HH:mm"));
 
-            // 查询待执行且时间匹配的任务
-            List<ScheduledDeployment> tasks = scheduledDeploymentRepository.findByStatusAndDateAndTime(
+            log.info("Current date: {}, time: {}, time range: [{} - {}]", currentDate, currentTime, timeBeforeStr, timeAfterStr);
+
+            // 查询待执行且执行时间在前后2分钟内的任务
+            List<ScheduledDeployment> tasks = scheduledDeploymentRepository.findPendingTasksInTimeRange(
                     ScheduledStatus.PENDING.getCode(),
                     currentDate,
-                    currentTime
+                    timeBeforeStr,
+                    timeAfterStr
             );
 
             log.info("Found {} pending tasks to execute", tasks.size());

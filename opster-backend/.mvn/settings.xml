@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+          http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <mirrors>
+        <!-- 阿里云公共仓库镜像 -->
+        <mirror>
+            <id>aliyun-public</id>
+            <name>Aliyun Public</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <mirrorOf>*</mirrorOf>
+        </mirror>
+    </mirrors>
+
+    <profiles>
+        <profile>
+            <id>aliyun</id>
+            <repositories>
+                <repository>
+                    <id>aliyun-public</id>
+                    <name>Aliyun Public</name>
+                    <url>https://maven.aliyun.com/repository/public</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+                <repository>
+                    <id>aliyun-spring</id>
+                    <name>Aliyun Spring</name>
+                    <url>https://maven.aliyun.com/repository/spring</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                </repository>
+            </repositories>
+            <pluginRepositories>
+                <pluginRepository>
+                    <id>aliyun-plugin</id>
+                    <name>Aliyun Plugin</name>
+                    <url>https://maven.aliyun.com/repository/public</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </pluginRepository>
+            </pluginRepositories>
+        </profile>
+    </profiles>
+
+    <activeProfiles>
+        <activeProfile>aliyun</activeProfile>
+    </activeProfiles>
+
+</settings>

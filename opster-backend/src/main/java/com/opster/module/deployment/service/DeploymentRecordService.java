@@ -67,6 +67,13 @@ public interface DeploymentRecordService {
     List<DeploymentRecord> getVersionHistory(Integer serviceId);
 
     /**
+     * 获取服务的所有发版记录（包括回退记录），按发版时间倒序
+     * @param serviceId 服务ID
+     * @return 发版记录列表
+     */
+    List<DeploymentRecord> getServiceRecords(Integer serviceId);
+
+    /**
      * 更新版本描述和标签
      * @param id 部署记录ID
      * @param description 版本描述

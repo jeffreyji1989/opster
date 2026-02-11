@@ -104,6 +104,8 @@
                   <el-dropdown-item command="log">日志</el-dropdown-item>
                   <el-dropdown-item command="terminal">终端</el-dropdown-item>
                 </template>
+                <!-- 发版记录 -->
+                <el-dropdown-item command="deployment_records" divided>发版记录</el-dropdown-item>
                 <!-- 版本回退子菜单 -->
                 <el-dropdown-item command="rollback_quick">快速回退（上一版本）</el-dropdown-item>
                 <el-dropdown-item command="rollback_history">选择历史版本回退</el-dropdown-item>
@@ -440,6 +442,45 @@
       </template>
     </el-dialog>
 
+    <!-- 发版记录对话框 -->
+    <el-dialog v-model="deploymentRecordsVisible" title="发版记录" width="80%" :close-on-click-modal="false">
+      <el-table :data="deploymentRecords" style="width: 100%" v-loading="deploymentRecordsLoading">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="createTime" label="发版时间" width="170" />
+        <el-table-column label="发版状态" width="100">
+          <template #default="scope">
+            <el-tag :type="getRecordStatusType(scope.row.status)">
+              {{ getRecordStatusText(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="90">
+          <template #default="scope">
+            <el-tag v-if="scope.row.isRollback" type="warning" size="small">回退</el-tag>
+            <el-tag v-else type="success" size="small">发版</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="versionTag" label="版本标签" width="120">
+          <template #default="scope">
+            {{ scope.row.versionTag || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="versionDescription" label="版本描述" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="gitCommitHash" label="Git提交" width="100">
+          <template #default="scope">
+            <code v-if="scope.row.gitCommitHash">{{ scope.row.gitCommitHash.substring(0, 8) }}</code>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="scope">
+            <el-button size="small" type="primary" @click="handleViewRecordLog(scope.row)">查看日志</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!deploymentRecordsLoading && deploymentRecords.length === 0" description="暂无发版记录" />
+    </el-dialog>
+
     <!-- 启动脚本预览对话框 -->
     <el-dialog v-model="scriptDialogVisible" title="启动脚本预览" width="900px">
       <div class="script-header">
@@ -522,6 +563,11 @@ const versionEditForm = reactive({
   description: '',
   tag: ''
 })
+
+// 发版记录相关
+const deploymentRecordsVisible = ref(false)
+const deploymentRecords = ref([])
+const deploymentRecordsLoading = ref(false)
 
 // 脚本生成相关状态
 const scriptDialogVisible = ref(false)
@@ -1197,6 +1243,9 @@ const handleMoreCommand = (command, row) => {
     case 'terminal':
       handleTerminal(row)
       break
+    case 'deployment_records':
+      openDeploymentRecords(row)
+      break
     case 'rollback_quick':
       handleRollback(row)
       break
@@ -1822,6 +1871,56 @@ const handleUploadToServer = async () => {
     // 结束 loading
     uploadingScript.value = false
   }
+}
+
+// ========== 发版记录相关方法 ==========
+
+// 打开发版记录对话框
+const openDeploymentRecords = async (row) => {
+  currentService.value = row
+  deploymentRecords.value = []
+  deploymentRecordsVisible.value = true
+  deploymentRecordsLoading.value = true
+
+  try {
+    const res = await request.get(`/deployment-records/service/${row.id}/records`)
+    deploymentRecords.value = res || []
+  } catch (e) {
+    ElMessage.error('获取发版记录失败')
+  } finally {
+    deploymentRecordsLoading.value = false
+  }
+}
+
+// 获取记录状态类型
+const getRecordStatusType = (status) => {
+  const statusMap = {
+    0: 'warning',   // 进行中
+    1: 'success',   // 完成
+    2: 'danger'     // 失败
+  }
+  return statusMap[status] || 'info'
+}
+
+// 获取记录状态文本
+const getRecordStatusText = (status) => {
+  const statusMap = {
+    0: '进行中',
+    1: '完成',
+    2: '失败'
+  }
+  return statusMap[status] || '未知'
+}
+
+// 查看发版记录日志
+const handleViewRecordLog = (record) => {
+  logContent.value = '正在获取日志...'
+  logVisible.value = true
+  request.get(`/deployment-records/${record.id}/logs`).then(data => {
+    logContent.value = data || '无日志内容'
+  }).catch(() => {
+    logContent.value = '获取日志失败'
+  })
 }
 
 onMounted(() => {
