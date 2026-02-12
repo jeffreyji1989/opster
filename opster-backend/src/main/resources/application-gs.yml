@@ -1,0 +1,54 @@
+opster:
+  deploy-path: D:\deploy
+  maven-home: C:\soft\apache-maven-3.9.12
+  java-home: C:\soft\Java\jdk-17.0.6
+  encrypt-key: "opster-secret-key"
+  # JDK 多版本配置
+  jdk:
+    jdk8: C:\soft\Java\jdk1.8.0_201
+    jdk17: C:\soft\Java\jdk-17.0.6
+  # Node.js 版本管理配置
+  nodejs:
+    enabled: true
+    nvm-path: C:\soft\nvm\nvm.exe
+    auto-install: true
+    install-timeout: 3000
+  # 异步线程池配置
+  async:
+    deployment:
+      core-pool-size: 4
+      max-pool-size: 16
+      queue-capacity: 100
+    batch-deployment:
+      core-pool-size: 2
+      max-pool-size: 8
+      queue-capacity: 50
+    scheduled-deployment:
+      core-pool-size: 2
+      max-pool-size: 4
+      queue-capacity: 20
+  # SSH 连接池配置
+  ssh:
+    pool:
+      enabled: true
+      max-connections-per-server: 2
+      keep-alive-interval: 30000
+      connection-timeout: 30000
+      session-timeout: 300000
+      server-alive-count-max: 3
+  # 文件传输配置
+  transfer:
+    buffer-size: 1048576
+    chunk-size: 5242880
+    max-retries: 3
+    retry-delays: "0,2000,5000"
+    progress-interval: 10
+    prefer-rsync: true
+    rsync-timeout: 600000
+    # 传输前检查
+    pre-check:
+      enabled: true
+      check-disk-space: true
+      check-server-load: true
+      min-free-space-ratio: 0.2
+      max-load-average: 8.0
