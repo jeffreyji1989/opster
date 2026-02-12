@@ -461,10 +461,17 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     LocalCommandUtils.executeCommand(sourceDir, setUrlCmd, wsSession, null, logger);
                 }
 
-                // 执行 fetch 和 checkout
-                String pullCmd = String.format("git fetch --depth=1 origin %s:%s && git checkout %s",
-                    gitBranch, gitBranch, gitBranch);
-                boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession, null, logger);
+                // 方案1：先重置未提交的更改，再 pull
+                // 强制重置到 origin/<branch>，丢弃本地更改
+                String resetCmd = String.format("git reset --hard origin/%s || git reset --hard && git checkout %s",
+                    gitBranch, gitBranch);
+                boolean resetResult = LocalCommandUtils.executeCommand(sourceDir, resetCmd, wsSession, null, logger);
+
+                // 然后拉取最新代码
+                String pullCmd = String.format("git pull origin %s", gitBranch);
+                boolean pullResult = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession, null, logger);
+
+                boolean result = resetResult && pullResult;
                 if (!result) {
                     logger.error("git pull 命令执行失败");
                 }
@@ -516,8 +523,14 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 String protocol = gitUrl.contains("https://") ? "https://" : "http://";
                 String restOfUrl = gitUrl.substring(protocol.length());
 
+                // 对用户名和密码进行 URL 编码，处理特殊字符（@、:、#、% 等）
+                String encodedUsername = java.net.URLEncoder.encode(username, "UTF-8");
+                String encodedPassword = java.net.URLEncoder.encode(password, "UTF-8");
+
                 // 构建带认证的URL
-                return protocol + username + ":" + password + "@" + restOfUrl;
+                String authenticatedUrl = protocol + encodedUsername + ":" + encodedPassword + "@" + restOfUrl;
+                log.info("构建认证 Git URL（用户名和密码已编码）");
+                return authenticatedUrl;
             }
 
             // SSH URL不需要在这里处理认证（应该使用SSH密钥）
