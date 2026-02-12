@@ -453,6 +453,15 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             if (LocalCommandUtils.directoryExists(sourceDir.resolve(".git"))) {
                 // 目录已存在，执行pull
                 logger.info("检测到Git仓库已存在，执行git pull...");
+
+                // 先更新远程仓库 URL（如果需要认证）
+                if (!authenticatedUrl.equals(gitUrl)) {
+                    logger.info("更新远程仓库 URL 以包含认证信息");
+                    String setUrlCmd = String.format("git remote set-url origin %s", authenticatedUrl);
+                    LocalCommandUtils.executeCommand(sourceDir, setUrlCmd, wsSession, null, logger);
+                }
+
+                // 执行 fetch 和 checkout
                 String pullCmd = String.format("git fetch --depth=1 origin %s:%s && git checkout %s",
                     gitBranch, gitBranch, gitBranch);
                 boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession, null, logger);
