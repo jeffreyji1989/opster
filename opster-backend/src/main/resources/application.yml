@@ -10,8 +10,8 @@ spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://39.155.134.146:33306/opster?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: 123123
-    password: 123123
+    username: ${OPSTER_DB_USERNAME}
+    password: ${OPSTER_DB_PWD}
 
   jpa:
     database-platform: org.hibernate.dialect.MySQLDialect

@@ -453,8 +453,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             if (LocalCommandUtils.directoryExists(sourceDir.resolve(".git"))) {
                 // 目录已存在，执行pull
                 logger.info("检测到Git仓库已存在，执行git pull...");
-                String pullCmd = String.format("git fetch origin && git checkout %s && git pull origin %s",
-                    gitBranch, gitBranch);
+                String pullCmd = String.format("git fetch --depth=1 origin %s:%s && git checkout %s",
+                    gitBranch, gitBranch, gitBranch);
                 boolean result = LocalCommandUtils.executeCommand(sourceDir, pullCmd, wsSession, null, logger);
                 if (!result) {
                     logger.error("git pull 命令执行失败");
@@ -469,7 +469,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 }
                 LocalCommandUtils.createDirectories(sourceDir);
 
-                String cloneCmd = String.format("git clone -b %s %s .", gitBranch, authenticatedUrl);
+                String cloneCmd = String.format("git clone --depth 1 -b %s %s .", gitBranch, authenticatedUrl);
                 boolean result = LocalCommandUtils.executeCommand(sourceDir, cloneCmd, wsSession, null, logger);
                 if (!result) {
                     logger.error("git clone 命令执行失败");

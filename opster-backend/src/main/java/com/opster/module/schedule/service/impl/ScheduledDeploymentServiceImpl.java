@@ -447,8 +447,8 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
 
         String branch = service.getGitBranch();
         String gitCmd = String.format(
-                "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git checkout %s && git pull; else mkdir -p \"%s\" && cd \"%s\" && git clone -b %s %s source; fi",
-                remoteDir, remoteDir, branch, remoteDir, remoteDir, branch, gitUrl
+                "if [ -d \"%s/source/.git\" ]; then cd \"%s/source\" && git fetch --depth=1 origin %s && git checkout %s && git pull origin %s; else mkdir -p \"%s\" && cd \"%s\" && git clone --depth 1 -b %s %s source; fi",
+                remoteDir, remoteDir, branch, branch, branch, remoteDir, remoteDir, branch, gitUrl
         );
         executeCommandWithLog(sshSession, gitCmd, logFilePath);
 
