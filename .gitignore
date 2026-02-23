@@ -98,3 +98,4 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+*.dbbak
