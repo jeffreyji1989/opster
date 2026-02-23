@@ -118,52 +118,41 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 actualLogger.info("JDK版本: " + jdkVersion);
             }
 
-            // 2. 准备工作目录 - 使用数据库中保存的路径
-            Path sourceDir;
-            if (serviceId != null) {
-                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
-                if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null) {
-                    sourceDir = Paths.get(serviceOpt.get().getSourcePath());
-                    actualLogger.info("使用数据库配置的源码目录: " + sourceDir);
-                } else {
-                    sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
-                    actualLogger.info("使用默认源码目录: " + sourceDir);
-                }
-            } else {
-                sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
-                actualLogger.info("使用默认源码目录: " + sourceDir);
-            }
-
+            // 2. 准备源码目录：固定公式 opster.deploy-path + 项目编码 + source
+            Path sourceDir = getSourceDir(projectCode, serviceAlias);
+            actualLogger.info("源码目录: " + sourceDir);
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录或使用数据库中配置的编译路径）
-            Path buildDir = sourceDir;
+            // 3. 准备编译目录：源码目录 + 编译路径
+            Path buildDir;
             if (serviceId != null) {
                 Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
                 if (serviceOpt.isPresent() && serviceOpt.get().getCompilePath() != null && !serviceOpt.get().getCompilePath().isEmpty()) {
                     // 使用数据库中配置的编译路径
-                    buildDir = sourceDir.resolve(serviceOpt.get().getCompilePath());
-                    actualLogger.info("使用数据库配置的编译目录: " + buildDir);
-                } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
-                    // 使用传入的项目路径
+                    String compilePath = serviceOpt.get().getCompilePath();
                     // 防止路径穿越攻击
+                    if (compilePath.contains("..")) {
+                        actualLogger.error("编译路径包含非法字符: " + compilePath);
+                        throw new Exception("Invalid compile path");
+                    }
+                    buildDir = sourceDir.resolve(compilePath);
+                    actualLogger.info("编译目录: " + buildDir);
+                } else {
+                    throw new Exception("编译路径未配置（请在服务配置中填写编译路径）");
+                }
+            } else {
+                // 兼容旧逻辑：如果没有 serviceId，使用 projectPath
+                if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                     if (projectPath.contains("..")) {
                         actualLogger.error("项目路径包含非法字符: " + projectPath);
                         throw new Exception("Invalid project path");
                     }
                     buildDir = sourceDir.resolve(projectPath);
-                    actualLogger.info("使用传入的项目路径: " + buildDir);
+                    actualLogger.info("编译目录（使用 projectPath）: " + buildDir);
+                } else {
+                    throw new Exception("编译路径未配置");
                 }
-            } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
-                // 防止路径穿越攻击
-                if (projectPath.contains("..")) {
-                    actualLogger.error("项目路径包含非法字符: " + projectPath);
-                    throw new Exception("Invalid project path");
-                }
-                buildDir = sourceDir.resolve(projectPath);
-                actualLogger.info("创建项目路径子目录: " + buildDir);
             }
-
             LocalCommandUtils.createDirectories(buildDir);
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
@@ -258,52 +247,41 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             actualLogger.info("Git分支: " + gitBranch);
             actualLogger.info("构建命令: " + buildCmd);
 
-            // 2. 准备工作目录 - 使用数据库中保存的路径
-            Path sourceDir;
-            if (serviceId != null) {
-                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
-                if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null) {
-                    sourceDir = Paths.get(serviceOpt.get().getSourcePath());
-                    actualLogger.info("使用数据库配置的源码目录: " + sourceDir);
-                } else {
-                    sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
-                    actualLogger.info("使用默认源码目录: " + sourceDir);
-                }
-            } else {
-                sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
-                actualLogger.info("使用默认源码目录: " + sourceDir);
-            }
-
+            // 2. 准备源码目录：固定公式 opster.deploy-path + 项目编码 + source
+            Path sourceDir = getSourceDir(projectCode, serviceAlias);
+            actualLogger.info("源码目录: " + sourceDir);
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 处理项目路径（使用数据库中配置的编译路径或传入的项目路径）
-            Path buildDir = sourceDir;
+            // 3. 准备编译目录：源码目录 + 编译路径
+            Path buildDir;
             if (serviceId != null) {
                 Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
                 if (serviceOpt.isPresent() && serviceOpt.get().getCompilePath() != null && !serviceOpt.get().getCompilePath().isEmpty()) {
                     // 使用数据库中配置的编译路径
-                    buildDir = sourceDir.resolve(serviceOpt.get().getCompilePath());
-                    actualLogger.info("使用数据库配置的编译目录: " + buildDir);
-                } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
-                    // 使用传入的项目路径
+                    String compilePath = serviceOpt.get().getCompilePath();
                     // 防止路径穿越攻击
+                    if (compilePath.contains("..")) {
+                        actualLogger.error("编译路径包含非法字符: " + compilePath);
+                        throw new Exception("Invalid compile path");
+                    }
+                    buildDir = sourceDir.resolve(compilePath);
+                    actualLogger.info("编译目录: " + buildDir);
+                } else {
+                    throw new Exception("编译路径未配置（请在服务配置中填写编译路径）");
+                }
+            } else {
+                // 兼容旧逻辑：如果没有 serviceId，使用 projectPath
+                if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                     if (projectPath.contains("..")) {
                         actualLogger.error("项目路径包含非法字符: " + projectPath);
                         throw new Exception("Invalid project path");
                     }
                     buildDir = sourceDir.resolve(projectPath);
-                    actualLogger.info("使用传入的项目路径: " + buildDir);
+                    actualLogger.info("编译目录（使用 projectPath）: " + buildDir);
+                } else {
+                    throw new Exception("编译路径未配置");
                 }
-            } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
-                // 防止路径穿越攻击
-                if (projectPath.contains("..")) {
-                    actualLogger.error("项目路径包含非法字符: " + projectPath);
-                    throw new Exception("Invalid project path");
-                }
-                buildDir = sourceDir.resolve(projectPath);
-                actualLogger.info("创建项目路径子目录: " + buildDir);
             }
-
             LocalCommandUtils.createDirectories(buildDir);
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
@@ -446,22 +424,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Override
     public Path getSourceDir(String projectCode, String serviceAlias) {
-        // 统一使用项目级别的 source 目录
-        String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "source");
-    }
-
-    /**
-     * 获取源码目录（统一使用项目级别的 source 目录）
-     * 同一项目的所有服务共享同一个源码目录，通过 projectPath 字段区分子项目
-     *
-     * @param projectCode 项目编码
-     * @param serviceAlias 服务别名（不再使用，保留参数兼容性）
-     * @param gitUrl Git 仓库地址（不再使用，保留参数兼容性）
-     * @return 源码目录
-     */
-    private Path getUniqueSourceDir(String projectCode, String serviceAlias, String gitUrl) {
-        // 统一使用项目级别的 source 目录，所有服务共享
+        // 源码目录：opster.deploy-path + 项目编码 + source
         String deployPath = opsterProperties.getDeployPath();
         return Paths.get(deployPath, projectCode, "source");
     }
@@ -519,10 +482,12 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     /**
-     * 根据服务ID获取编译路径
+     * 获取编译目录
+     * 公式：源码目录 + 编译路径
+     * 源码目录 = opster.deploy-path + 项目编码 + source
      *
      * @param serviceId 服务ID
-     * @return 编译路径，如果服务不存在或未配置编译路径则返回null
+     * @return 编译目录，如果服务不存在或未配置编译路径则返回null
      */
     public Path getCompilePathByServiceId(Integer serviceId) {
         if (serviceId == null) {
@@ -530,12 +495,22 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         }
 
         Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
-        if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null && serviceOpt.get().getCompilePath() != null) {
-            String sourcePath = serviceOpt.get().getSourcePath();
-            String compilePath = serviceOpt.get().getCompilePath();
-
-            // 合并源码路径和编译路径
-            return Paths.get(sourcePath).resolve(compilePath);
+        if (serviceOpt.isPresent()) {
+            AppService service = serviceOpt.get();
+            if (service.getCompilePath() != null && !service.getCompilePath().isEmpty()) {
+                // 获取项目编码以计算源码目录
+                String projectCode = projectRepository.findById(service.getProjectId())
+                    .map(Project::getProjectCode)
+                    .orElse(null);
+                if (projectCode == null) {
+                    log.warn("服务 {} 关联的项目不存在", serviceId);
+                    return null;
+                }
+                // 源码目录 = opster.deploy-path + 项目编码 + source
+                Path sourceDir = getSourceDir(projectCode, null);
+                // 编译目录 = 源码目录 + 编译路径
+                return sourceDir.resolve(service.getCompilePath());
+            }
         }
 
         return null;
