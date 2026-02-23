@@ -203,12 +203,17 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 创建远程目录: " + remoteDir);
             executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs}");
 
-            // 8. 先备份当前版本（在上传新文件之前备份）
-            logger.log(">>> 备份当前版本...");
-            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
-            if (backupInfo.filePath != null) {
-                deploymentRecord.setBackupFilePath(backupInfo.filePath);
-                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+            // 8. 先备份当前版本（仅后端项目需要备份jar文件）
+            if (serviceTypeValue == null || serviceTypeValue != 0) {
+                // 后端项目需要备份jar文件
+                logger.log(">>> 备份当前版本...");
+                BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
+                if (backupInfo.filePath != null) {
+                    deploymentRecord.setBackupFilePath(backupInfo.filePath);
+                    deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+                }
+            } else {
+                logger.log(">>> 前端项目无需备份jar文件");
             }
 
             // 9. 上传打包产物
@@ -228,12 +233,19 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 部署新版本...");
             deployNewVersion(sshSession, remoteDir, artifact, logger);
 
-            // 11. 重启服务
+            // 11. 重启服务（前端项目跳过）
             logger.log(">>> 重启服务...");
             restartRemoteService(sshSession, service, logger);
 
-            // 12. 健康检查
-            if (service.getPort() != null) {
+            // 12. 健康检查（前端项目跳过）
+            if (serviceTypeValue != null && serviceTypeValue == 0) {
+                // 前端项目：无需健康检查，直接成功
+                logger.log(">>> 前端项目部署完成（无需健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
+                deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
+            } else if (service.getPort() != null) {
+                // 后端项目：执行健康检查
                 logger.log(">>> 健康检查（端口 " + service.getPort() + "）...");
                 boolean isHealthy = checkHealth(sshSession, service.getPort(), logger);
 
@@ -1536,12 +1548,17 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 创建远程目录: " + remoteDir);
             executeRemoteCommand(logger, sshSession, "mkdir -p " + remoteDir + "/{bak,logs}");
 
-            // 7. 先备份当前版本（在上传新文件之前备份）
-            logger.log(">>> 备份当前版本...");
-            BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
-            if (backupInfo.filePath != null) {
-                deploymentRecord.setBackupFilePath(backupInfo.filePath);
-                deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+            // 7. 先备份当前版本（仅后端项目需要备份jar文件）
+            if (serviceTypeValue == null || serviceTypeValue != 0) {
+                // 后端项目需要备份jar文件
+                logger.log(">>> 备份当前版本...");
+                BackupInfo backupInfo = backupCurrentVersion(sshSession, remoteDir, logger);
+                if (backupInfo.filePath != null) {
+                    deploymentRecord.setBackupFilePath(backupInfo.filePath);
+                    deploymentRecord.setBackupFileSize(backupInfo.fileSize);
+                }
+            } else {
+                logger.log(">>> 前端项目无需备份jar文件");
             }
 
             // 8. 上传打包产物
@@ -1557,12 +1574,19 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             logger.log(">>> 部署新版本...");
             deployNewVersion(sshSession, remoteDir, artifact, logger);
 
-            // 10. 重启服务
+            // 10. 重启服务（前端项目跳过）
             logger.log(">>> 重启服务...");
             restartRemoteService(sshSession, service, logger);
 
-            // 11. 健康检查
-            if (service.getPort() != null) {
+            // 11. 健康检查（前端项目跳过）
+            if (serviceTypeValue != null && serviceTypeValue == 0) {
+                // 前端项目：无需健康检查，直接成功
+                logger.log(">>> 前端项目部署完成（无需健康检查）");
+                service.setRunStatus(RunStatus.NORMAL);
+                service.setLastDeployTime(LocalDateTime.now()); // 记录发版时间
+                deploymentRecord.setStatus(DeploymentStatus.COMPLETED);
+            } else if (service.getPort() != null) {
+                // 后端项目：执行健康检查
                 logger.log(">>> 健康检查（端口 " + service.getPort() + "）...");
                 boolean isHealthy = checkHealth(sshSession, service.getPort(), logger);
 
