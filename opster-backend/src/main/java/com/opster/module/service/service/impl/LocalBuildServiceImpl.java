@@ -123,7 +123,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             actualLogger.info("源码目录: " + sourceDir);
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 准备编译目录：源码目录 + 编译路径
+            // 3. 准备编译目录：源码目录 + 编译路径（如果编译路径为空则使用源码目录）
             Path buildDir;
             if (serviceId != null) {
                 Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
@@ -138,7 +138,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     buildDir = sourceDir.resolve(compilePath);
                     actualLogger.info("编译目录: " + buildDir);
                 } else {
-                    throw new Exception("编译路径未配置（请在服务配置中填写编译路径）");
+                    // 编译路径为空，使用源码目录作为编译目录
+                    buildDir = sourceDir;
+                    actualLogger.info("编译路径为空，使用源码目录: " + buildDir);
                 }
             } else {
                 // 兼容旧逻辑：如果没有 serviceId，使用 projectPath
@@ -150,7 +152,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     buildDir = sourceDir.resolve(projectPath);
                     actualLogger.info("编译目录（使用 projectPath）: " + buildDir);
                 } else {
-                    throw new Exception("编译路径未配置");
+                    // projectPath 也为空，使用源码目录
+                    buildDir = sourceDir;
+                    actualLogger.info("编译路径为空，使用源码目录: " + buildDir);
                 }
             }
             LocalCommandUtils.createDirectories(buildDir);
@@ -252,7 +256,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             actualLogger.info("源码目录: " + sourceDir);
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 准备编译目录：源码目录 + 编译路径
+            // 3. 准备编译目录：源码目录 + 编译路径（如果编译路径为空则使用源码目录）
             Path buildDir;
             if (serviceId != null) {
                 Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
@@ -267,7 +271,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     buildDir = sourceDir.resolve(compilePath);
                     actualLogger.info("编译目录: " + buildDir);
                 } else {
-                    throw new Exception("编译路径未配置（请在服务配置中填写编译路径）");
+                    // 编译路径为空，使用源码目录作为编译目录
+                    buildDir = sourceDir;
+                    actualLogger.info("编译路径为空，使用源码目录: " + buildDir);
                 }
             } else {
                 // 兼容旧逻辑：如果没有 serviceId，使用 projectPath
@@ -279,7 +285,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                     buildDir = sourceDir.resolve(projectPath);
                     actualLogger.info("编译目录（使用 projectPath）: " + buildDir);
                 } else {
-                    throw new Exception("编译路径未配置");
+                    // projectPath 也为空，使用源码目录
+                    buildDir = sourceDir;
+                    actualLogger.info("编译路径为空，使用源码目录: " + buildDir);
                 }
             }
             LocalCommandUtils.createDirectories(buildDir);
