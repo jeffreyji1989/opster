@@ -47,6 +47,9 @@ public class AppServiceServiceImpl implements AppServiceService {
     @Value("${opster.java-home}")
     private String javaHome;
 
+    @Value("${opster.deploy-path}")
+    private String deployPath;
+
     @Override
     public List<AppService> findAll() {
         return appServiceRepository.findAll();
@@ -93,14 +96,88 @@ public class AppServiceServiceImpl implements AppServiceService {
     @Override
     public AppService save(AppService service) {
         boolean isNew = service.getId() == null;
+
+        // 自动计算源码目录（仅在新增时或源码目录为空时计算）
+        if (isNew || service.getSourcePath() == null || service.getSourcePath().isEmpty()) {
+            String computedSourcePath = computeSourcePath(service);
+            service.setSourcePath(computedSourcePath);
+        }
+
+        // 如果 serviceType 为空，尝试从 repositoryType 获取（兼容旧数据）
+        if (service.getServiceType() == null && service.getRepositoryType() != null) {
+            service.setServiceType(service.getRepositoryType());
+        }
+
+        // ========== 自动修正构建命令 ==========
+        // 优先使用已设置的 buildScript
+        if (service.getBuildScript() == null || service.getBuildScript().isEmpty()) {
+            // 如果 buildScript 为空，尝试从旧字段获取
+            if (service.getMavenCmd() != null && !service.getMavenCmd().isEmpty()) {
+                service.setBuildScript(service.getMavenCmd());
+            } else if (service.getBuildCmd() != null && !service.getBuildCmd().isEmpty()) {
+                service.setBuildScript(service.getBuildCmd());
+            } else {
+                // 如果旧字段也为空，根据 serviceType 自动设置默认构建命令
+                if (service.getServiceType() != null) {
+                    if (service.getServiceType() == 1) {
+                        // 后端项目：使用 Maven
+                        service.setBuildScript("mvn clean package -DskipTests");
+                    } else {
+                        // 前端项目（0-前端, 2-管理后台, 3-移动端）：使用 npm
+                        service.setBuildScript("npm install && npm run build");
+                    }
+                }
+            }
+        }
+
+        // ========== 验证构建命令与服务类型是否匹配 ==========
+        if (service.getServiceType() != null && service.getBuildScript() != null && !service.getBuildScript().isEmpty()) {
+            boolean isFrontend = service.getServiceType() != 1; // 0, 2, 3 是前端
+            boolean isMavenCommand = service.getBuildScript().trim().toLowerCase().startsWith("mvn");
+
+            if (isFrontend && isMavenCommand) {
+                log.warn("服务 ID={} 的服务类型为前端，但构建命令为 Maven 命令，已自动修正为 npm 命令", service.getId());
+                service.setBuildScript("npm install && npm run build");
+            } else if (!isFrontend && !isMavenCommand) {
+                log.warn("服务 ID={} 的服务类型为后端，但构建命令为 npm 命令，已自动修正为 Maven 命令", service.getId());
+                service.setBuildScript("mvn clean package -DskipTests");
+            }
+        }
+
         AppService savedService = appServiceRepository.save(service);
-        
+
         // Update server deployed count
         if (isNew) {
             updateServerDeployedCount(savedService.getServerId(), 1);
         }
-        
+
         return savedService;
+    }
+
+    /**
+     * 计算源码目录
+     * 公式：opster.deploy-path + projectCode + "source"
+     */
+    private String computeSourcePath(AppService service) {
+        if (service.getProjectId() == null) {
+            return null;
+        }
+
+        // 获取项目信息
+        Optional<Project> projectOptional = projectRepository.findById(service.getProjectId());
+        if (projectOptional.isEmpty()) {
+            return null;
+        }
+
+        Project project = projectOptional.get();
+        String projectCode = project.getProjectCode();
+
+        if (projectCode == null || projectCode.isEmpty()) {
+            return null;
+        }
+
+        // 构建路径：{deployPath}/{projectCode}/source
+        return deployPath + "/" + projectCode + "/source";
     }
 
     @Override
@@ -238,27 +315,11 @@ public class AppServiceServiceImpl implements AppServiceService {
         }
         Project project = projectOpt.get();
 
-        // 从 Git URL 提取服务别名
-        String gitUrl = determineGitUrlForService(service, project);
-        String serviceAlias = extractServiceAliasFromGitUrl(gitUrl);
-
-        // 构建部署路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
-        String deployPath = project.getDeployPath();
-        String projectCode = project.getProjectCode();
-        String projectPath = service.getProjectPath();
-
-        StringBuilder fullPath = new StringBuilder(deployPath);
-        if (StrUtil.isNotBlank(projectCode)) {
-            fullPath.append("/").append(projectCode);
-            if (StrUtil.isNotBlank(serviceAlias)) {
-                fullPath.append("/").append(serviceAlias);
-                if (StrUtil.isNotBlank(projectPath)) {
-                    fullPath.append("/").append(projectPath);
-                }
-            }
+        // 使用服务配置的部署路径
+        String deployDir = service.getDeployPath();
+        if (StrUtil.isBlank(deployDir)) {
+            throw new IllegalArgumentException("部署路径不能为空（请在服务配置中填写部署路径）");
         }
-
-        String deployDir = fullPath.toString();
         String scriptFile = deployDir + "/start.sh";
 
         Session session = null;

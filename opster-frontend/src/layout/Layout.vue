@@ -38,6 +38,10 @@
           <el-icon><Clock /></el-icon>
           <span>定时发版</span>
         </el-menu-item>
+        <el-menu-item index="/git-account">
+          <el-icon><Key /></el-icon>
+          <span>Git 账号管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>

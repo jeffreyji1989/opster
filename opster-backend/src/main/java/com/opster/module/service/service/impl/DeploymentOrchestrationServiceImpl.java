@@ -68,6 +68,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
     private ProjectRepository projectRepository;
 
     @Autowired
+    private com.opster.module.project.repository.SubProjectRepository subProjectRepository;
+
+    @Autowired
+    private com.opster.module.git.repository.GitAccountRepository gitAccountRepository;
+
+    @Autowired
     private LocalBuildService localBuildService;
 
     @Autowired
@@ -150,15 +156,26 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             String gitUsername = determineGitUsername(service, project);
             String gitPassword = determineGitPassword(service, project);
 
+            // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+            Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+            RepositoryType repositoryType = serviceTypeValue != null ?
+                RepositoryType.values()[serviceTypeValue] : RepositoryType.BACKEND;
+
+            // 根据服务类型选择构建命令（优先使用新的 buildScript 字段）
+            String buildCommand = service.getBuildScript();
+            if (buildCommand == null || buildCommand.isEmpty()) {
+                // 兼容旧字段：前端使用 buildCmd，后端使用 mavenCmd
+                buildCommand = (serviceTypeValue != null && serviceTypeValue == 0) ?
+                    service.getBuildCmd() : service.getMavenCmd();
+            }
+
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
                 extractServiceAliasFromGitUrl(gitUrl),
-                service.getRepositoryType() != null ?
-                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND,
+                repositoryType,
                 gitUrl,
                 service.getGitBranch(),
-                service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
-                    service.getBuildCmd() : service.getMavenCmd(),
+                buildCommand,
                 projectPath,
                 wsSession,
                 gitUsername,
@@ -197,7 +214,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             // 9. 上传打包产物
             logger.log(">>> 开始上传打包产物 (" + (artifactSize / 1024 / 1024) + " MB)...");
             logger.log(">>> 提示: 大文件上传可能需要几分钟，请勿关闭页面...");
-            if (service.getRepositoryType() != null && service.getRepositoryType() == 0) {
+            if (serviceTypeValue != null && serviceTypeValue == 0) {
                 // 前端项目：上传zip并解压
                 fileTransferService.uploadAndExtractZip(artifact, sshSession, remoteDir, wsSession);
             } else {
@@ -640,11 +657,16 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     /**
      * 构建远程服务器部署目录路径
-     * 如果配置了项目路径，则在基础路径后追加项目路径
+     * <p>优先级规则：
+     * <ol>
+     *   <li>如果服务配置了 deployPath，直接使用该路径（不追加任何内容）</li>
+     *   <li>如果服务未配置 deployPath，使用项目的 deployRootPath 并自动追加 /{projectCode}/{serviceAlias}</li>
+     *   <li>如果配置了 projectPath，则继续追加到路径后</li>
+     * </ol>
      *
      * @param project 项目配置
      * @param service 服务配置
-     * @return 远程部署目录路径，格式：{deployPath}/{projectCode}/{serviceAlias} 或 {deployPath}/{projectCode}/{serviceAlias}/{projectPath}
+     * @return 远程部署目录路径
      * @throws IllegalArgumentException 如果参数为空或无效
      */
     private String buildRemoteDir(Project project, AppService service) {
@@ -659,32 +681,15 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         if (StrUtil.isBlank(projectCode)) {
             throw new IllegalArgumentException("项目编码不能为空");
         }
-        String deployPath = project.getDeployPath();
-        if (StrUtil.isBlank(deployPath)) {
-            throw new IllegalArgumentException("部署路径不能为空");
+
+        // 使用服务配置的部署路径
+        String serviceDeployPath = service.getDeployPath();
+        if (StrUtil.isBlank(serviceDeployPath)) {
+            throw new IllegalArgumentException("部署路径不能为空（请在服务配置中填写部署路径）");
         }
 
-        // 从 Git URL 自动提取服务别名（仓库名）
-        String gitUrl = determineGitUrl(service, project);
-        String serviceAlias = extractServiceAliasFromGitUrl(gitUrl);
-
-        // 标准化路径：去除首尾空格，确保不以斜杠结尾
-        String normalizedBasePath = deployPath.trim().replaceAll("/+$", "");
-        String normalizedProjectCode = projectCode.trim().replaceAll("^/+", "").replaceAll("/+$", "");
-        String normalizedServiceAlias = serviceAlias.trim().replaceAll("^/+", "").replaceAll("/+$", "");
-
-        // 构建基础路径：{deployPath}/{projectCode}/{serviceAlias}
-        String baseDir = normalizedBasePath + "/" + normalizedProjectCode + "/" + normalizedServiceAlias;
-
-        // 如果配置了项目路径，则追加到基础路径后
-        if (StrUtil.isNotBlank(service.getProjectPath())) {
-            String normalizedProjectPath = service.getProjectPath().trim()
-                    .replaceAll("^/+", "")  // 去除开头斜杠
-                    .replaceAll("/+$", "");  // 去除结尾斜杠
-            return baseDir + "/" + normalizedProjectPath;
-        }
-
-        return baseDir;
+        // 标准化路径：去除首尾空格和结尾斜杠
+        return serviceDeployPath.trim().replaceAll("/+$", "");
     }
 
     /**
@@ -698,8 +703,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
         // 从项目的repositories中查找
         if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
-            RepositoryType repoType = service.getRepositoryType() != null ?
-                RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND;
+            // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+            Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+            RepositoryType repoType = serviceTypeValue != null ?
+                RepositoryType.values()[serviceTypeValue] : RepositoryType.BACKEND;
 
             return project.getRepositories().stream()
                 .filter(r -> r.getType() == repoType)
@@ -773,16 +780,55 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
      * 确定Git认证用户名
      */
     private String determineGitUsername(AppService service, Project project) {
-        // 从项目配置获取用户名
+        // 优先从SubProject关联的GitAccount获取用户名
+        if (service.getSubProjectId() != null) {
+            return subProjectRepository.findById(service.getSubProjectId())
+                .map(subProject -> {
+                    if (subProject.getGitAccountId() != null) {
+                        return gitAccountRepository.findById(subProject.getGitAccountId())
+                            .map(com.opster.module.git.entity.GitAccount::getGitUsername)
+                            .orElse(null);
+                    }
+                    return null;
+                })
+                .orElse(null);
+        }
+
+        // 兼容旧数据：从Project配置获取用户名
         return project.getGitUsername();
     }
 
     /**
-     * 确定Git认证密码
+     * 确定Git认证密码(自动解密)
      */
     private String determineGitPassword(AppService service, Project project) {
-        // 从项目配置获取密码
-        return project.getGitPassword();
+        // 优先从SubProject关联的GitAccount获取密码
+        if (service.getSubProjectId() != null) {
+            return subProjectRepository.findById(service.getSubProjectId())
+                .map(subProject -> {
+                    if (subProject.getGitAccountId() != null) {
+                        return gitAccountRepository.findById(subProject.getGitAccountId())
+                            .map(gitAccount -> {
+                                // 密码是加密存储的,需要解密
+                                String encryptedPassword = gitAccount.getGitPassword();
+                                if (encryptedPassword != null && !encryptedPassword.isEmpty()) {
+                                    return com.opster.common.SecurityUtils.decrypt(encryptedPassword);
+                                }
+                                return null;
+                            })
+                            .orElse(null);
+                    }
+                    return null;
+                })
+                .orElse(null);
+        }
+
+        // 兼容旧数据：从Project配置获取密码
+        String oldPassword = project.getGitPassword();
+        if (oldPassword != null && !oldPassword.isEmpty()) {
+            return com.opster.common.SecurityUtils.decrypt(oldPassword);
+        }
+        return null;
     }
 
     /**
@@ -797,8 +843,10 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
         // 从项目的repositories中查找
         if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
-            RepositoryType repoType = service.getRepositoryType() != null ?
-                RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND;
+            // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+            Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+            RepositoryType repoType = serviceTypeValue != null ?
+                RepositoryType.values()[serviceTypeValue] : RepositoryType.BACKEND;
 
             return project.getRepositories().stream()
                 .filter(r -> r.getType() == repoType)
@@ -1411,15 +1459,26 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             String gitUsername = determineGitUsername(service, project);
             String gitPassword = determineGitPassword(service, project);
 
+            // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+            Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+            RepositoryType repositoryType = serviceTypeValue != null ?
+                RepositoryType.values()[serviceTypeValue] : RepositoryType.BACKEND;
+
+            // 根据服务类型选择构建命令（优先使用新的 buildScript 字段）
+            String buildCommand = service.getBuildScript();
+            if (buildCommand == null || buildCommand.isEmpty()) {
+                // 兼容旧字段：前端使用 buildCmd，后端使用 mavenCmd
+                buildCommand = (serviceTypeValue != null && serviceTypeValue == 0) ?
+                    service.getBuildCmd() : service.getMavenCmd();
+            }
+
             Path artifact = localBuildService.buildArtifact(
                 projectCode,
                 extractServiceAliasFromGitUrl(gitUrl),
-                service.getRepositoryType() != null ?
-                    RepositoryType.values()[service.getRepositoryType()] : RepositoryType.BACKEND,
+                repositoryType,
                 gitUrl,
                 service.getGitBranch(),
-                service.getRepositoryType() != null && service.getRepositoryType() == 0 ?
-                    service.getBuildCmd() : service.getMavenCmd(),
+                buildCommand,
                 projectPath,
                 null, // 无 WebSocket
                 gitUsername,
@@ -1457,7 +1516,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
             // 8. 上传打包产物
             logger.log(">>> 上传打包产物...");
-            if (service.getRepositoryType() != null && service.getRepositoryType() == 0) {
+            if (serviceTypeValue != null && serviceTypeValue == 0) {
                 fileTransferService.uploadAndExtractZip(artifact, sshSession, remoteDir, null);
             } else {
                 String remoteJarPath = remoteDir + "/" + artifact.getFileName().toString();

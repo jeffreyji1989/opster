@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Opster** 是一个全栈运维管理系统,用于服务器管理、服务部署和监控。
 
 ### 技术栈
-- **后端**: Java 25, Spring Boot 3.5.9, Spring Data JPA, SQLite, Spring AI Alibaba (DashScope)
+- **后端**: Java 17, Spring Boot 3.5.9, Spring Data JPA, SQLite, Spring AI Alibaba (DashScope)
 - **前端**: Vue 3 (Composition API), Vite, Element Plus, Xterm.js
 - **通信**: REST API + WebSocket (实时日志、终端)
 
@@ -156,7 +156,6 @@ opster-frontend/src/
 ### 后端规范
 - 使用 Spring Data JPA Repository 进行数据访问
 - 所有实体继承 BaseEntity 以获得审计功能
-- 使用 Lombok 减少样板代码
 - RESTful API 设计规范
 - WebSocket 处理器用于实时数据流
 

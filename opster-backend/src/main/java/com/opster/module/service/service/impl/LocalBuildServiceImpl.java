@@ -135,7 +135,13 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
             // 5. Maven打包
             actualLogger.info(">>> 开始Maven打包...");
-            boolean mavenSuccess = executeMavenBuild(projectRoot, mavenCmd, mavenCmd, wsSession, actualLogger);
+            // 如果 mavenCmd 为空，使用默认命令
+            String actualMavenCmd = mavenCmd;
+            if (cn.hutool.core.util.StrUtil.isBlank(actualMavenCmd)) {
+                actualMavenCmd = "mvn clean package -DskipTests";
+                actualLogger.info("Maven命令为空，使用默认命令: " + actualMavenCmd);
+            }
+            boolean mavenSuccess = executeMavenBuild(projectRoot, actualMavenCmd, actualMavenCmd, wsSession, actualLogger);
             if (!mavenSuccess) {
                 actualLogger.error("Maven打包失败");
                 throw new Exception("Maven build failed");
@@ -280,9 +286,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 actualLogger.warn("npm install失败，但继续尝试构建");
             }
 
+            // 6.5. 检查package.json中的可用脚本(帮助用户配置正确的构建命令)
+            logAvailableNpmScripts(projectRoot, actualLogger);
+
             // 7. npm打包
             actualLogger.info(">>> 开始npm构建...");
-            boolean buildSuccess = executeNpmBuild(projectRoot, buildCmd, nodeBinDir, wsSession, actualLogger);
+            // 如果 buildCmd 为空，使用默认命令
+            String actualBuildCmd = buildCmd;
+            if (cn.hutool.core.util.StrUtil.isBlank(actualBuildCmd)) {
+                actualBuildCmd = "npm run build";
+                actualLogger.info("构建命令为空，使用默认命令: " + actualBuildCmd);
+            }
+            boolean buildSuccess = executeNpmBuild(projectRoot, actualBuildCmd, nodeBinDir, wsSession, actualLogger);
             if (!buildSuccess) {
                 actualLogger.error("npm构建失败");
                 throw new Exception("npm build failed");
@@ -354,43 +369,38 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Override
     public Path getSourceDir(String projectCode, String serviceAlias) {
-        // 如果没有配置 serviceAlias，使用默认值
-        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+        // 统一使用项目级别的 source 目录
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, alias, "source");
+        return Paths.get(deployPath, projectCode, "source");
     }
 
     /**
-     * 获取源码目录（统一使用 source 目录）
-     * 同一项目的不同服务通过 serviceAlias + projectPath 字段区分子目录
+     * 获取源码目录（统一使用项目级别的 source 目录）
+     * 同一项目的所有服务共享同一个源码目录，通过 projectPath 字段区分子项目
      *
      * @param projectCode 项目编码
-     * @param serviceAlias 服务别名
+     * @param serviceAlias 服务别名（不再使用，保留参数兼容性）
      * @param gitUrl Git 仓库地址（不再使用，保留参数兼容性）
      * @return 源码目录
      */
     private Path getUniqueSourceDir(String projectCode, String serviceAlias, String gitUrl) {
-        // 如果没有配置 serviceAlias，使用默认值
-        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
-        // 统一使用 source 目录，通过 serviceAlias + projectPath 字段区分不同子项目
+        // 统一使用项目级别的 source 目录，所有服务共享
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, alias, "source");
+        return Paths.get(deployPath, projectCode, "source");
     }
 
     @Override
     public Path getArtifactsDir(String projectCode, String serviceAlias) {
-        // 如果没有配置 serviceAlias，使用默认值
-        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+        // 统一使用项目级别的 artifacts 目录
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, alias, "artifacts");
+        return Paths.get(deployPath, projectCode, "artifacts");
     }
 
     @Override
     public Path getLogsDir(String projectCode, String serviceAlias) {
-        // 如果没有配置 serviceAlias，使用默认值
-        String alias = (cn.hutool.core.util.StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
+        // 统一使用项目级别的 logs 目录
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, alias, "logs");
+        return Paths.get(deployPath, projectCode, "logs");
     }
 
     @Override
@@ -630,17 +640,25 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
         logger.info("JAVA_HOME: " + correctedJavaHome);
         logger.info("M2_HOME: " + mavenHomeForEnv);
-        logger.info("Maven命令: " + mavenCmd);
+
+        // 如果 mavenCmd 为空，使用默认命令
+        String actualMavenCmd = mavenCmd;
+        if (cn.hutool.core.util.StrUtil.isBlank(actualMavenCmd)) {
+            actualMavenCmd = "mvn clean package -DskipTests";
+            logger.info("Maven命令为空，使用默认命令");
+        }
+
+        logger.info("Maven命令: " + actualMavenCmd);
         logger.info("使用PATH中的Maven: " + mavenHomeForEnv + "/bin/mvn");
 
         // 构建完整的 Maven 命令，添加详细输出参数
         // -B: batch mode（批处理模式，输出更详细的进度信息）
         // -e: 显示完整的错误堆栈信息
-        String fullMavenCmd = mavenCmd;
-        if (!mavenCmd.contains("-B")) {
-            fullMavenCmd = mavenCmd + " -B";
+        String fullMavenCmd = actualMavenCmd;
+        if (!actualMavenCmd.contains("-B")) {
+            fullMavenCmd = actualMavenCmd + " -B";
         }
-        if (!mavenCmd.contains("-e")) {
+        if (!actualMavenCmd.contains("-e")) {
             fullMavenCmd = fullMavenCmd + " -e";
         }
 
@@ -766,14 +784,111 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     private boolean executeNpmBuild(Path projectRoot, String buildCmd, String nodeBinDir,
                                    WebSocketSession wsSession, LocalBuildLogger logger) {
         String[] envVars = buildNodeEnvVars(nodeBinDir);
+
+        // 如果 buildCmd 为空，使用默认命令
+        String actualBuildCmd = buildCmd;
+        if (cn.hutool.core.util.StrUtil.isBlank(actualBuildCmd)) {
+            actualBuildCmd = "npm run build";
+            logger.info("构建命令为空，使用默认命令: " + actualBuildCmd);
+        }
+
         // 构建完整的 npm 命令，添加详细输出参数
         // 如果构建命令不包含日志级别参数，则自动添加
-        String fullBuildCmd = buildCmd;
-        if (!buildCmd.contains("--loglevel")) {
-            fullBuildCmd = buildCmd + " --loglevel=verbose";
+        String fullBuildCmd = actualBuildCmd;
+        if (!actualBuildCmd.contains("--loglevel")) {
+            fullBuildCmd = actualBuildCmd + " --loglevel=verbose";
         }
         logger.info("执行npm构建命令: " + fullBuildCmd);
-        return LocalCommandUtils.executeCommand(projectRoot, fullBuildCmd, wsSession, envVars, logger);
+
+        boolean result = LocalCommandUtils.executeCommand(projectRoot, fullBuildCmd, wsSession, envVars, logger);
+
+        // 如果构建失败,尝试提供诊断信息
+        if (!result) {
+            logger.error("========================================");
+            logger.error("npm构建失败,可能的原因:");
+            logger.error("1. package.json 中缺少对应的构建脚本");
+            logger.error("2. 请检查 package.json 的 scripts 字段");
+            logger.error("");
+            logger.error("常用前端构建命令:");
+            logger.error("  - Vue/React Web: npm run build");
+            logger.error("  - React Native: npm run bundle 或使用特定平台构建");
+            logger.error("  - Electron: npm run build 或 npm run package");
+            logger.error("");
+            logger.error("当前配置的构建命令: " + actualBuildCmd);
+            logger.error("========================================");
+        }
+
+        return result;
+    }
+
+    /**
+     * 记录package.json中可用的npm脚本
+     * 帮助用户了解项目有哪些可用的构建命令
+     */
+    private void logAvailableNpmScripts(Path projectRoot, LocalBuildLogger logger) {
+        try {
+            Path packageJsonPath = projectRoot.resolve("package.json");
+            if (!Files.exists(packageJsonPath)) {
+                logger.warn("未找到 package.json 文件");
+                return;
+            }
+
+            // 读取 package.json 内容
+            String content = Files.readString(packageJsonPath);
+
+            // 使用简单的文本解析提取 scripts (避免引入 JSON 解析依赖)
+            int scriptsIndex = content.indexOf("\"scripts\"");
+            if (scriptsIndex == -1) {
+                logger.warn("package.json 中未定义 scripts");
+                return;
+            }
+
+            // 提取 scripts 对象的内容 (从 { 到对应的 })
+            int scriptsStart = content.indexOf("{", scriptsIndex);
+            if (scriptsStart == -1) {
+                return;
+            }
+
+            // 简单提取: 找到所有 "key": "value" 格式
+            java.util.List<String> availableScripts = new java.util.ArrayList<>();
+            int searchPos = scriptsStart + 1;
+            int braceCount = 1;
+
+            while (searchPos < content.length() && braceCount > 0) {
+                char c = content.charAt(searchPos);
+                if (c == '{') braceCount++;
+                if (c == '}') {
+                    braceCount--;
+                    if (braceCount == 0) break;
+                }
+
+                // 查找 "scriptname": 格式
+                if (c == '"') {
+                    int nextQuote = content.indexOf('"', searchPos + 1);
+                    if (nextQuote != -1 && content.charAt(nextQuote + 1) == ':') {
+                        String scriptName = content.substring(searchPos + 1, nextQuote);
+                        // 跳过特殊脚本 (pre/post 开头的)
+                        if (!scriptName.startsWith("pre") && !scriptName.startsWith("post")) {
+                            availableScripts.add(scriptName);
+                        }
+                        searchPos = nextQuote + 1;
+                    }
+                }
+                searchPos++;
+            }
+
+            if (!availableScripts.isEmpty()) {
+                logger.info("========================================");
+                logger.info("package.json 中可用的构建脚本:");
+                for (String script : availableScripts) {
+                    logger.info("  - npm run " + script);
+                }
+                logger.info("========================================");
+            }
+
+        } catch (Exception e) {
+            logger.warn("读取 package.json 失败: " + e.getMessage());
+        }
     }
 
     /**

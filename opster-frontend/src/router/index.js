@@ -7,6 +7,7 @@ import Service from '../views/Service.vue'
 import Monitor from '../views/Monitor.vue'
 import DeploymentRecord from '../views/DeploymentRecord.vue'
 import ScheduledDeployment from '../views/ScheduledDeployment.vue'
+import GitAccountManagement from '../views/GitAccountManagement.vue'
 
 const routes = [
   {
@@ -48,6 +49,11 @@ const routes = [
         path: 'scheduled-deployment',
         name: 'ScheduledDeployment',
         component: ScheduledDeployment
+      },
+      {
+        path: 'git-account',
+        name: 'GitAccount',
+        component: GitAccountManagement
       }
     ]
   }

@@ -57,10 +57,11 @@
           {{ getProjectDisplay(scope.row) }}
         </template>
       </el-table-column>
+      <el-table-column prop="serviceName" label="服务名称" width="120" />
       <el-table-column label="类型" width="100">
         <template #default="scope">
-          <el-tag :type="getRepoTypeColor(scope.row.repositoryType)" size="small">
-            {{ getRepoTypeLabel(scope.row.repositoryType) }}
+          <el-tag :type="getServiceTypeColor(scope.row.serviceType)" size="small">
+            {{ getServiceTypeLabel(scope.row.serviceType) }}
           </el-tag>
         </template>
       </el-table-column>
@@ -99,7 +100,7 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <!-- 后端和管理后台项目显示：启动/重启、日志、终端 -->
-                <template v-if="scope.row.repositoryType === 1 || scope.row.repositoryType === 2">
+                <template v-if="scope.row.serviceType === 1 || scope.row.serviceType === 2">
                   <el-dropdown-item command="restart">启动/重启</el-dropdown-item>
                   <el-dropdown-item command="log">日志</el-dropdown-item>
                   <el-dropdown-item command="terminal">终端</el-dropdown-item>
@@ -127,15 +128,73 @@
           </el-select>
         </el-form-item>
 
-        <div v-if="form.projectId" class="repo-config-list">
-          <div v-for="(item, index) in form.items" :key="index" class="repo-config-card">
-            <div class="repo-info">
-              <el-tag size="small">{{ getRepoTypeLabel(item.repoType) }}</el-tag>
-              <span class="repo-url">{{ item.repoGitUrl }}</span>
-            </div>
-            
+        <div v-if="form.projectId">
+          <!-- 添加服务按钮（仅在新增模式显示） -->
+          <el-button v-if="!form.id" type="primary" size="small" @click="handleAddService" style="margin-bottom: 15px;">
+            + 添加服务
+          </el-button>
+
+          <div class="repo-config-list">
+            <el-collapse v-model="activeCollapseNames">
+              <el-collapse-item v-for="(item, index) in form.items" :key="index" :name="index">
+                <template #title>
+                  <div class="collapse-title">
+                    <el-tag size="small" type="primary">{{ item.subProjectName || item.serviceName || '服务 ' + (index + 1) }}</el-tag>
+                    <el-tag size="small" type="info" style="margin-left: 8px;">{{ getServiceTypeLabel(item.serviceType) }}</el-tag>
+                    <span v-if="item.repoGitUrl" class="repo-url" style="margin-left: 10px;">{{ item.repoGitUrl }}</span>
+                    <!-- 删除按钮（仅在新增模式且有多个服务时显示） -->
+                    <el-button
+                      v-if="!form.id && form.items.length > 1"
+                      type="danger"
+                      size="small"
+                      @click.stop="handleRemoveService(index)"
+                      style="margin-left: 10px;">
+                      删除
+                    </el-button>
+                  </div>
+                </template>
+
             <el-row :gutter="20">
-              <el-col :span="5">
+              <el-col :span="6">
+                <el-form-item label="服务名称" label-width="80px">
+                  <el-input v-model="item.serviceName" placeholder="请输入服务名称" clearable />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12">
+                <el-form-item label="Git 地址" label-width="80px">
+                  <!-- 新增模式：显示下拉选择框 -->
+                  <el-select
+                    v-if="!form.id"
+                    v-model="item.subProjectId"
+                    placeholder="选择仓库地址"
+                    filterable
+                    allow-create
+                    style="width: 100%"
+                    @change="(val) => handleSubProjectChange(index, val)">
+                    <el-option
+                      v-for="sub in availableSubProjects"
+                      :key="sub.id"
+                      :label="`${sub.subProjectName} - ${sub.gitUrl}`"
+                      :value="sub.id" />
+                  </el-select>
+                  <!-- 编辑模式：显示 Git 地址输入框（只读或可编辑） -->
+                  <el-input
+                    v-else
+                    v-model="item.repoGitUrl"
+                    placeholder="Git 仓库地址"
+                    clearable
+                    readonly>
+                    <template #append>
+                      <el-button @click="copyGitUrl(item.repoGitUrl)">复制</el-button>
+                    </template>
+                  </el-input>
+                  <span style="font-size: 12px; color: #999;">
+                    <span v-if="!form.id">可选择已有仓库或手动输入</span>
+                    <span v-else>编辑模式下 Git 地址不可修改（如需更换请删除后重新创建）</span>
+                  </span>
+                </el-form-item>
+              </el-col>
+              <el-col :span="6">
                 <el-form-item label="服务器" label-width="70px">
                   <el-select v-model="item.serverId" placeholder="选择服务器" style="width: 100%">
                     <el-option v-for="s in servers" :key="s.id" :label="`${s.alias} (${s.ip})`" :value="s.id" />
@@ -150,9 +209,9 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="3">
+              <el-col :span="4">
                 <el-form-item label="端口" label-width="50px">
-                  <el-input-number v-model="item.port" :min="1" :max="65535" controls-position="right" style="width: 100%" />
+                  <el-input-number v-model="item.port" :min="1" :max="65535" :step="1" controls-position="right" style="width: 100%" />
                 </el-form-item>
               </el-col>
               <el-col :span="4">
@@ -162,12 +221,15 @@
               </el-col>
               <el-col :span="4">
                 <el-form-item label="状态" label-width="50px">
-                  <el-switch v-model="item.status" :active-value="1" :inactive-value="0" active-text="启用" />
+                  <el-switch v-model="item.status" :active-value="1" :inactive-value="0" active-text="启用" style="width: 100px" />
                 </el-form-item>
               </el-col>
-              <el-col :span="4">
-                <el-form-item label="仓库类型" label-width="80px">
-                  <el-select v-model="item.repositoryType" style="width: 100%">
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-form-item label="服务类型" label-width="80px">
+                  <el-select v-model="item.serviceType" style="width: 100%">
                     <el-option label="前端" :value="0" />
                     <el-option label="后端" :value="1" />
                     <el-option label="管理后台" :value="2" />
@@ -175,31 +237,17 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="24">
-                <el-form-item label="部署路径" label-width="90px">
-                  <el-input :value="getComputedDeployPath(item)" readonly />
+              <el-col :span="8">
+                <el-form-item label="编译路径" label-width="80px">
+                  <el-input v-model="item.compilePath" placeholder="例如：target、dist" clearable />
                   <span style="font-size: 12px; color: #999;">
-                    项目的部署根目录 + 项目编码 + 项目路径（自动计算）
+                    编译工作目录（手动填写）
                   </span>
                 </el-form-item>
               </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="项目路径" label-width="90px">
-                  <el-input v-model="item.projectPath" placeholder="例如：opster-backend、opster-frontend" clearable />
-                  <span style="font-size: 12px; color: #999;">
-                    相对于Git仓库的子目录路径，如果项目在仓库根目录则留空
-                  </span>
-                </el-form-item>
-              </el-col>
-              <!-- 仅后端项目显示日志路径 -->
-              <el-col :span="12" v-if="item.repositoryType === 1">
-                <el-form-item label="日志路径" label-width="90px">
+              <el-col :span="8">
+                <!-- 仅后端项目显示日志路径 -->
+                <el-form-item v-if="item.serviceType === 1" label="日志路径" label-width="80px">
                   <!-- 新增模式：显示计算后的路径（只读） -->
                   <el-input v-if="!form.id" :value="getComputedLogPath(item)" readonly />
                   <!-- 编辑模式：显示服务端返回的值（可编辑） -->
@@ -209,19 +257,38 @@
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="12">
-                <!-- 后端项目显示 Maven 命令 -->
-                <el-form-item v-if="item.repositoryType === 1" label="Maven命令" label-width="90px">
-                  <el-input v-model="item.mavenCmd" type="textarea" :rows="1" placeholder="mvn clean package -DskipTests" />
+              <el-col :span="24">
+                <el-form-item label="部署路径" label-width="80px">
+                  <el-input v-model="item.deployPath" placeholder="请输入部署路径，例如：/var/opster/eip" clearable />
+                  <div style="margin-top: 5px;">
+                    <span style="font-size: 12px; color: #999;">
+                      服务器上的部署路径（手动填写）
+                    </span>
+                    <el-button
+                      v-if="!item.deployPath"
+                      type="primary"
+                      size="small"
+                      link
+                      @click="handleAutoFillDeployPath(item)">
+                      自动填充
+                    </el-button>
+                  </div>
                 </el-form-item>
-                <!-- 前端项目显示构建命令 -->
-                <el-form-item v-else label="构建命令" label-width="90px">
-                  <el-input v-model="item.buildCmd" type="textarea" :rows="1" placeholder="npm run build" />
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20">
+              <el-col :span="12">
+                <el-form-item label="编译脚本" label-width="90px">
+                  <el-input v-model="item.buildScript" type="textarea" :rows="2" placeholder="后端：mvn clean package -DskipTests；前端：npm install && npm run build" />
+                  <span style="font-size: 12px; color: #999;">
+                    统一 Maven 命令和构建命令
+                  </span>
                 </el-form-item>
               </el-col>
               <el-col :span="12">
                 <!-- 前端项目显示 Node.js 版本配置 -->
-                <el-form-item v-if="item.repositoryType !== 1" label="Node版本" label-width="90px">
+                <el-form-item v-if="item.serviceType !== 1" label="Node版本" label-width="90px">
                   <el-select
                     v-model="item.nodeVersion"
                     placeholder="选择或输入版本"
@@ -256,11 +323,11 @@
               </el-col>
             </el-row>
 
-            <!-- 仅后端项目显示启动脚本和监控地址 -->
-            <el-row :gutter="20" v-if="item.repositoryType === 1">
-              <el-col :span="12">
-                <el-form-item label="启动脚本" label-width="90px">
-                  <el-input v-model="item.startScript" type="textarea" :rows="1" placeholder="./start.sh" />
+            <!-- 仅后端项目显示启动脚本 -->
+            <el-row :gutter="20" v-if="item.serviceType === 1">
+              <el-col :span="24">
+                <el-form-item label="启动脚本" label-width="80px">
+                  <el-input v-model="item.startScript" type="textarea" :rows="2" placeholder="./start.sh" />
                   <div style="margin-top: 5px;">
                     <el-button
                       type="primary"
@@ -271,12 +338,9 @@
                   </div>
                 </el-form-item>
               </el-col>
-              <el-col :span="12">
-                <el-form-item label="监控地址" label-width="90px">
-                  <el-input v-model="item.monitorUrl" />
-                </el-form-item>
-              </el-col>
             </el-row>
+              </el-collapse-item>
+            </el-collapse>
           </div>
         </div>
       </el-form>
@@ -535,6 +599,7 @@ const servers = ref([])
 const businessLines = ref([])
 const installedNodeVersions = ref([])  // 已安装的 Node.js 版本列表
 const selectedServices = ref([])  // 选中的服务列表
+const availableSubProjects = ref([])  // 项目可用的子项目列表
 
 const queryForm = reactive({
   projectId: '',
@@ -575,17 +640,17 @@ const generatedScript = ref('')
 const currentEditingItem = ref(null)
 const uploadingScript = ref(false) // 上传中的状态
 
-// 仓库类型映射
-const repoTypeMap = {
+// 服务类型映射
+const serviceTypeMap = {
   0: '前端',
   1: '后端',
   2: '管理后台',
   3: '移动端'
 }
-const getRepoTypeLabel = (type) => repoTypeMap[type] || '未知'
+const getServiceTypeLabel = (type) => serviceTypeMap[type] || '未知'
 
-// 仓库类型颜色映射
-const getRepoTypeColor = (type) => {
+// 服务类型颜色映射
+const getServiceTypeColor = (type) => {
   const colorMap = {
     0: 'success',    // 前端 - 绿色
     1: 'primary',    // 后端 - 蓝色
@@ -601,50 +666,214 @@ const form = reactive({
   items: []
 })
 
-const handleProjectChange = (projectId) => {
-  const project = projects.value.find(p => p.id === projectId)
-  if (!project) {
+// 折叠面板状态
+const activeCollapseNames = ref([])
+
+const handleProjectChange = async (projectId) => {
+  if (!projectId) {
     form.items = []
+    availableSubProjects.value = []
     return
   }
 
-  // 解析 repositories 字段，确保它是数组对象
-  let repos = project.repositories
-  if (typeof repos === 'string') {
-    try {
-      repos = JSON.parse(repos)
-    } catch (e) {
-      console.error('解析仓库列表失败:', e)
-      repos = []
-    }
-  }
+  try {
+    // 从 SubProject 表获取该项目的代码仓库列表
+    const subProjects = await request.get(`/sub-project/project/${projectId}`)
 
-  if (Array.isArray(repos)) {
-    form.items = repos.map(repo => {
-      // 根据仓库类型预设默认值
-      const isFrontend = repo.type === 0 || repo.type === 2 || repo.type === 3
-      return {
-        repoGitUrl: repo.gitUrl,
-        repoType: repo.type,
-        repositoryType: repo.type, // 新增字段
+    // 保存可用的子项目列表
+    availableSubProjects.value = Array.isArray(subProjects) ? subProjects : []
+
+    // 如果有 SubProject 配置，添加第一个空白服务（默认选择第一个仓库）
+    if (availableSubProjects.value.length > 0) {
+      const firstSubProject = availableSubProjects.value[0]
+      const isFrontend = ['frontend', 'admin', 'mobile'].includes(firstSubProject.projectType)
+
+      // 获取项目信息以计算部署路径
+      const project = projects.value.find(p => p.id === projectId)
+      const deployRootPath = project?.deployRootPath || project?.deployPath || ''
+      const projectCode = project?.projectCode || ''
+      const projectPath = firstSubProject.projectPath || ''
+
+      // 计算默认部署路径
+      const defaultDeployPath = deployRootPath && projectCode
+        ? `${deployRootPath}/${projectCode}${projectPath ? '/' + projectPath : ''}`
+        : ''
+
+      form.items = [{
+        // 基本信息
+        serviceName: '',
+
+        // 关联 SubProject
+        subProjectId: firstSubProject.id,
+        subProjectName: firstSubProject.subProjectName,
+
+        // Git 信息
+        repoGitUrl: firstSubProject.gitUrl,
+        gitAccountId: firstSubProject.gitAccountId,
+        gitBranch: firstSubProject.gitBranch || 'master',
+        projectPath: firstSubProject.projectPath || '',
+        deployPath: defaultDeployPath,  // 自动填充默认路径
+
+        // 项目类型
+        projectType: firstSubProject.projectType,
+        serviceType: getServiceTypeValue(firstSubProject.projectType),
+
+        // 部署配置
         serverId: null,
         env: '测试',
         port: isFrontend ? 80 : 8080,
-        gitBranch: 'master',
-        // deployPath 已移到项目配置中
-        logPath: '', // 新增模式下留空，自动计算显示
-        projectPath: repo.projectPath || '', // 新增字段，项目路径
-        mavenCmd: isFrontend ? '' : 'mvn clean package -DskipTests',
-        buildCmd: isFrontend ? 'npm install && npm run build' : '', // 新增字段
-        nodeVersion: isFrontend ? '' : 'jdk17', // 前端手动填写，后端默认 jdk17
+
+        // 日志路径
+        logPath: '',
+        compilePath: '',
+
+        // 构建配置
+        buildScript: isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests',
+        nodeVersion: '',
+
+        // 启动脚本
         startScript: isFrontend ? '' : './start.sh',
-        monitorUrl: '',
+
+        // 状态
         status: 1
-      }
-    })
-  } else {
-    form.items = []
+      }]
+    } else {
+      // 如果没有 SubProject 配置，提供空白表单
+      form.items = [{
+        serviceName: '',
+        subProjectId: null,
+        subProjectName: '',
+        repoGitUrl: '',
+        gitAccountId: null,
+        gitBranch: 'master',
+        projectPath: '',
+        deployPath: '',
+        projectType: '',
+        serviceType: 1,
+        serverId: null,
+        env: '测试',
+        port: 8080,
+        logPath: '',
+        compilePath: '',
+        buildScript: 'mvn clean package -DskipTests',
+        nodeVersion: '',
+        startScript: './start.sh',
+        status: 1
+      }]
+    }
+
+    // 默认展开第一个面板
+    activeCollapseNames.value = [0]
+  } catch (error) {
+    console.error('获取代码仓库列表失败:', error)
+    availableSubProjects.value = []
+    // 出错时也提供空白表单
+    form.items = [{
+      serviceName: '',
+      subProjectId: null,
+      subProjectName: '',
+      repoGitUrl: '',
+      gitAccountId: null,
+      gitBranch: 'master',
+      projectPath: '',
+      deployPath: '',
+      projectType: '',
+      serviceType: 1,
+      serverId: null,
+      env: '测试',
+      port: 8080,
+      logPath: '',
+      compilePath: '',
+      buildScript: 'mvn clean package -DskipTests',
+      nodeVersion: '',
+      startScript: './start.sh',
+      status: 1
+    }]
+    activeCollapseNames.value = [0]
   }
+}
+
+// 处理子项目选择变化
+const handleSubProjectChange = (itemIndex, subProjectId) => {
+  const item = form.items[itemIndex]
+
+  if (subProjectId && availableSubProjects.value.length > 0) {
+    // 从下拉框选择
+    const selectedSubProject = availableSubProjects.value.find(sub => sub.id === subProjectId)
+    if (selectedSubProject) {
+      item.subProjectName = selectedSubProject.subProjectName
+      item.repoGitUrl = selectedSubProject.gitUrl
+      item.gitAccountId = selectedSubProject.gitAccountId
+      item.gitBranch = selectedSubProject.gitBranch || 'master'
+      item.projectPath = selectedSubProject.projectPath || ''
+      item.projectType = selectedSubProject.projectType
+      item.serviceType = getServiceTypeValue(selectedSubProject.projectType)
+
+      // 根据项目类型调整默认值
+      const isFrontend = ['frontend', 'admin', 'mobile'].includes(selectedSubProject.projectType)
+      item.port = isFrontend ? 80 : 8080
+      item.buildScript = isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests'
+    }
+  } else {
+    // 手动输入或清空
+    item.subProjectName = ''
+    item.repoGitUrl = ''
+    item.gitAccountId = null
+    item.projectPath = ''
+    item.deployPath = ''
+  }
+}
+
+// 复制 Git URL 到剪贴板
+const copyGitUrl = (url) => {
+  if (!url) {
+    return ElMessage.warning('Git 地址为空')
+  }
+  navigator.clipboard.writeText(url).then(() => {
+    ElMessage.success('Git 地址已复制到剪贴板')
+  }).catch(() => {
+    ElMessage.error('复制失败')
+  })
+}
+
+// 自动填充部署路径
+const handleAutoFillDeployPath = (item) => {
+  const project = projects.value.find(p => p.id === form.projectId)
+  if (!project) {
+    return ElMessage.warning('请先选择项目')
+  }
+
+  // 使用项目配置的 deployRootPath 作为基础路径
+  const deployRootPath = project.deployRootPath || project.deployPath || ''
+  const projectCode = project.projectCode || ''
+  const projectPath = item.projectPath || ''
+
+  // 构建路径：{deployRootPath}/{projectCode}/{projectPath}
+  let fullPath = deployRootPath
+  if (projectCode) {
+    fullPath += '/' + projectCode
+    if (projectPath) {
+      fullPath += '/' + projectPath
+    }
+  }
+
+  if (fullPath) {
+    item.deployPath = fullPath
+    ElMessage.success('已自动填充部署路径')
+  } else {
+    ElMessage.warning('无法计算部署路径，请检查项目配置')
+  }
+}
+
+// 将项目类型字符串转换为服务类型数字值
+const getServiceTypeValue = (projectType) => {
+  const typeMap = {
+    'frontend': 0,
+    'backend': 1,
+    'admin': 2,
+    'mobile': 3
+  }
+  return typeMap[projectType] ?? 1
 }
 
 const getStatusType = (status) => {
@@ -803,23 +1032,19 @@ const getFullDeployPath = (row) => {
   const project = projects.value.find(p => p.id === row.projectId)
   if (!project) return ''
 
-  // deployPath 现在从项目配置获取
-  const deployPath = project.deployPath || ''
+  // 使用项目配置的 deployRootPath 作为基础路径
+  const deployRootPath = project.deployRootPath || project.deployPath || ''
   const projectCode = project.projectCode || ''
-  // 从 Git URL 自动提取服务别名
-  const gitUrl = row.repoGitUrl || ''
-  const serviceAlias = extractServiceAliasFromGitUrl(gitUrl)
   const projectPath = row.projectPath || ''
 
-  // 构建路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
-  let fullPath = deployPath
+  // 根据最新的目录结构构建路径：{deployRootPath}/{projectCode}/{projectPath}
+  // 注意：新目录结构移除了 {serviceAlias} 层级
+  let fullPath = deployRootPath
   if (projectCode) {
     fullPath += '/' + projectCode
-    if (serviceAlias) {
-      fullPath += '/' + serviceAlias
-      if (projectPath) {
-        fullPath += '/' + projectPath
-      }
+    // 如果有 projectPath，追加到路径末尾
+    if (projectPath) {
+      fullPath += '/' + projectPath
     }
   }
   return fullPath
@@ -830,23 +1055,19 @@ const getComputedDeployPath = (item) => {
   const project = projects.value.find(p => p.id === form.projectId)
   if (!project) return ''
 
-  // deployPath 现在从项目配置获取
-  const deployPath = project.deployPath || ''
+  // 使用项目配置的 deployRootPath 作为基础路径
+  const deployRootPath = project.deployRootPath || project.deployPath || ''
   const projectCode = project.projectCode || ''
-  // 从 Git URL 自动提取服务别名
-  const gitUrl = item.repoGitUrl || ''
-  const serviceAlias = extractServiceAliasFromGitUrl(gitUrl)
   const projectPath = item.projectPath || ''
 
-  // 构建路径：{deployPath}/{projectCode}/{serviceAlias}/{projectPath}
-  let fullPath = deployPath
+  // 根据最新的目录结构构建路径：{deployRootPath}/{projectCode}/{projectPath}
+  // 注意：新目录结构移除了 {serviceAlias} 层级
+  let fullPath = deployRootPath
   if (projectCode) {
     fullPath += '/' + projectCode
-    if (serviceAlias) {
-      fullPath += '/' + serviceAlias
-      if (projectPath) {
-        fullPath += '/' + projectPath
-      }
+    // 如果有 projectPath，追加到路径末尾
+    if (projectPath) {
+      fullPath += '/' + projectPath
     }
   }
   return fullPath
@@ -857,6 +1078,51 @@ const getComputedLogPath = (item) => {
   const deployPath = getComputedDeployPath(item)
   if (!deployPath) return ''
   return deployPath + '/logs/app.log'
+}
+
+// 计算编辑模式下的完整部署路径
+const getFullDeployPathForEdit = (item) => {
+  const project = projects.value.find(p => p.id === form.projectId)
+  if (!project) return ''
+
+  // 使用项目配置的 deployRootPath 作为基础路径
+  const deployRootPath = project.deployRootPath || project.deployPath || ''
+  const projectCode = project.projectCode || ''
+
+  // 从 Git URL 自动提取服务别名
+  const gitUrl = item.repoGitUrl || ''
+  const serviceAlias = extractServiceAliasFromGitUrl(gitUrl)
+  const projectPath = item.projectPath || ''
+
+  // 根据最新的目录结构构建路径：{deployRootPath}/{projectCode}
+  // 注意：新目录结构移除了 {serviceAlias} 层级
+  let fullPath = deployRootPath
+  if (projectCode) {
+    fullPath += '/' + projectCode
+    // 如果有 projectPath，追加到路径末尾
+    if (projectPath) {
+      fullPath += '/' + projectPath
+    }
+  }
+  return fullPath
+}
+
+// 计算源码目录（系统自动计算，只读）
+const getComputedSourcePath = (item) => {
+  const project = projects.value.find(p => p.id === form.projectId)
+  if (!project) return ''
+
+  // 从 application.yml 配置中获取 opster.deploy-path（这里需要从后端获取）
+  // 暂时使用项目配置中的 deployRootPath
+  const deployPath = project.deployRootPath || ''
+  const projectCode = project.projectCode || ''
+
+  // 构建路径：{deployPath}/{projectCode}/source
+  let fullPath = deployPath
+  if (projectCode) {
+    fullPath += '/' + projectCode + '/source'
+  }
+  return fullPath
 }
 
 // 获取已安装的 Node.js 版本列表
@@ -918,29 +1184,142 @@ const handleAdd = () => {
   dialogVisible.value = true
 }
 
-const handleEdit = (row) => {
+// 添加服务（支持同一个 Git 地址添加多个服务）
+const handleAddService = () => {
+  // 获取当前项目信息
+  const project = projects.value.find(p => p.id === form.projectId)
+  if (!project) return
+
+  // 如果有可用的子项目，默认选择第一个
+  let defaultSubProjectId = null
+  let defaultSubProjectName = ''
+  let defaultRepoGitUrl = ''
+  let defaultGitAccountId = null
+  let defaultProjectPath = ''
+  let defaultDeployPath = ''
+  let defaultProjectType = ''
+  let defaultServiceType = 1
+  let defaultPort = 8080
+  let defaultBuildScript = 'mvn clean package -DskipTests'
+
+  if (availableSubProjects.value.length > 0) {
+    const firstSubProject = availableSubProjects.value[0]
+    defaultSubProjectId = firstSubProject.id
+    defaultSubProjectName = firstSubProject.subProjectName
+    defaultRepoGitUrl = firstSubProject.gitUrl
+    defaultGitAccountId = firstSubProject.gitAccountId
+    defaultProjectPath = firstSubProject.projectPath || ''
+    defaultProjectType = firstSubProject.projectType
+    defaultServiceType = getServiceTypeValue(firstSubProject.projectType)
+
+    const isFrontend = ['frontend', 'admin', 'mobile'].includes(firstSubProject.projectType)
+    defaultPort = isFrontend ? 80 : 8080
+    defaultBuildScript = isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests'
+
+    // 计算默认部署路径
+    const deployRootPath = project.deployRootPath || project.deployPath || ''
+    const projectCode = project.projectCode || ''
+    if (deployRootPath && projectCode) {
+      defaultDeployPath = `${deployRootPath}/${projectCode}${defaultProjectPath ? '/' + defaultProjectPath : ''}`
+    }
+  }
+
+  // 添加一个新的服务配置
+  form.items.push({
+    serviceName: '',
+    subProjectId: defaultSubProjectId,
+    subProjectName: defaultSubProjectName,
+    repoGitUrl: defaultRepoGitUrl,
+    gitAccountId: defaultGitAccountId,
+    gitBranch: 'master',
+    projectPath: defaultProjectPath,
+    deployPath: defaultDeployPath,  // 自动填充默认路径
+    projectType: defaultProjectType,
+    serviceType: defaultServiceType,
+    serverId: null,
+    env: '测试',
+    port: defaultPort,
+    logPath: '',
+    compilePath: '',
+    buildScript: defaultBuildScript,
+    nodeVersion: '',
+    startScript: defaultProjectType === 'backend' ? './start.sh' : '',
+    status: 1
+  })
+  // 自动展开新添加的面板
+  activeCollapseNames.value.push(form.items.length - 1)
+}
+
+// 删除服务
+const handleRemoveService = (index) => {
+  form.items.splice(index, 1)
+  // 更新折叠面板状态
+  activeCollapseNames.value = activeCollapseNames.value.filter(name => name !== index)
+}
+
+const handleEdit = async (row) => {
   form.id = row.id
   form.projectId = row.projectId
+
+  // 先加载项目的子项目列表
+  try {
+    const subProjects = await request.get(`/sub-project/project/${row.projectId}`)
+    availableSubProjects.value = Array.isArray(subProjects) ? subProjects : []
+  } catch (error) {
+    console.error('获取子项目列表失败:', error)
+    availableSubProjects.value = []
+  }
+
+  // 尝试通过 repoGitUrl 匹配对应的子项目
+  let matchedSubProjectId = row.subProjectId || null
+  let matchedSubProjectName = row.subProjectName || ''
+  let matchedProjectType = row.projectType || ''
+
+  // 如果没有 subProjectId 但有 repoGitUrl，尝试匹配
+  if (!matchedSubProjectId && row.repoGitUrl && availableSubProjects.value.length > 0) {
+    const matched = availableSubProjects.value.find(sub => sub.gitUrl === row.repoGitUrl)
+    if (matched) {
+      matchedSubProjectId = matched.id
+      matchedSubProjectName = matched.subProjectName
+      matchedProjectType = matched.projectType
+    }
+  }
+
   // 编辑模式只编辑当前选中的一个服务
   form.items = [{
     id: row.id,
-    repoGitUrl: row.repoGitUrl,
-    repositoryType: row.repositoryType ?? 1, // 新增字段，默认为后端
+    serviceName: row.serviceName || '',
+    // 关联子项目信息
+    subProjectId: matchedSubProjectId,
+    subProjectName: matchedSubProjectName,
+    // Git 信息
+    repoGitUrl: row.repoGitUrl || '',
+    gitAccountId: row.gitAccountId || null,
+    gitBranch: row.gitBranch || 'master',
+    projectPath: row.projectPath || '',
+    deployPath: row.deployPath || '',
+    // 项目类型
+    projectType: matchedProjectType,
+    serviceType: row.serviceType ?? row.repositoryType ?? 1,
+    // 服务器配置
     serverId: row.serverId,
     env: row.env,
     port: row.port,
-    gitBranch: row.gitBranch,
-    // deployPath 已移到项目配置中
+    // 路径配置
     logPath: row.logPath,
-    projectPath: row.projectPath || '', // 新增字段，项目路径
-    mavenCmd: row.mavenCmd,
-    buildCmd: row.buildCmd, // 新增字段
-    nodeVersion: row.nodeVersion || '', // Node.js 版本
-    startScript: row.startScript,
-    monitorUrl: row.monitorUrl,
+    compilePath: row.compilePath || '',
+    // 构建配置
+    buildScript: row.buildScript || row.mavenCmd || row.buildCmd || '',
+    nodeVersion: row.nodeVersion || '',
+    // 启动脚本
+    startScript: row.startScript || '',
+    // 状态
     status: row.status,
-    scriptUploaded: row.scriptUploaded || 0 // 脚本上传状态
+    scriptUploaded: row.scriptUploaded || 0
   }]
+
+  // 默认展开第一个面板
+  activeCollapseNames.value = [0]
   dialogVisible.value = true
 }
 
@@ -955,7 +1334,7 @@ const handleSubmit = async () => {
   // 校验每项是否选择了服务器
   const invalid = form.items.find(item => !item.serverId)
   if (invalid) {
-    return ElMessage.warning(`仓库 ${invalid.repoGitUrl} 未选择服务器`)
+    return ElMessage.warning(`代码仓库【${invalid.subProjectName || invalid.repoGitUrl}】未选择服务器`)
   }
 
   try {
@@ -1964,6 +2343,14 @@ onMounted(() => {
   max-height: 60vh;
   overflow-y: auto;
 }
+
+/* 折叠面板标题样式 */
+.collapse-title {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
 .repo-config-card {
   border: 1px solid #ebeef5;
   border-radius: 4px;

@@ -66,17 +66,15 @@ public class LocalDeploymentLogger implements AutoCloseable {
     /**
      * 创建日志文件
      * @param projectCode 项目编码
-     * @param serviceAlias 服务别名
+     * @param serviceAlias 服务别名（不再使用，保留参数兼容性）
      * @param deployPath 本地部署根目录
      * @param serviceId 服务ID（可选，用于批量部署区分不同服务）
      * @return 日志文件路径
      */
     private Path createLogFile(String projectCode, String serviceAlias, String deployPath, Integer serviceId) {
         try {
-            // 如果没有配置 serviceAlias，使用默认值
-            String alias = (StrUtil.isNotBlank(serviceAlias)) ? serviceAlias : "service";
-            // 创建日志目录：{deployPath}/{projectCode}/{serviceAlias}/p_log/
-            Path logDir = Paths.get(deployPath, projectCode, alias, "p_log");
+            // 创建日志目录：{deployPath}/{projectCode}/logs/
+            Path logDir = Paths.get(deployPath, projectCode, "logs");
             Files.createDirectories(logDir);
 
             // 生成日志文件名：yyyyMMddHHmmss[_serviceId].log

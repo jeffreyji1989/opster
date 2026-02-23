@@ -28,9 +28,9 @@
       <el-table-column prop="projectCode" label="项目编号" width="150" />
       <el-table-column prop="projectName" label="项目名称" />
       <el-table-column prop="projectOwner" label="负责人" />
-      <el-table-column label="Git 仓库" width="120">
+      <el-table-column label="代码仓库" width="120">
         <template #default="{ row }">
-          <el-tag>{{ row.repositories?.length || 0 }} 个仓库</el-tag>
+          <el-tag>{{ row.repositoryCount || 0 }} 个仓库</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="businessLine" label="业务线" />
@@ -48,7 +48,7 @@
       </el-table-column>
     </el-table>
 
-    <!-- Dialog -->
+    <!-- 项目编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="form.id ? '编辑项目' : '新增项目'" width="1000px">
       <el-form :model="form" label-width="100px">
         <el-form-item label="项目编号">
@@ -60,41 +60,6 @@
         <el-form-item label="负责人">
           <el-input v-model="form.projectOwner" />
         </el-form-item>
-        <el-form-item label="Git 认证">
-          <el-input v-model="form.gitUsername" placeholder="用户名（可选）" style="width: 200px; margin-right: 10px" />
-          <el-input v-model="form.gitPassword" type="password" placeholder="密码（可选）" style="width: 200px" show-password />
-          <span style="font-size: 12px; color: #999; margin-left: 10px">用于 Git 仓库认证（HTTP/HTTPS）</span>
-        </el-form-item>
-        <el-form-item label="Git 仓库">
-          <div v-for="(repo, index) in form.repositories" :key="index" class="repo-container">
-            <div class="repo-row">
-              <el-select v-model="repo.type" placeholder="类型" style="width: 90px">
-                <el-option label="前端" :value="0" />
-                <el-option label="后端" :value="1" />
-                <el-option label="管理后台" :value="2" />
-                <el-option label="移动端" :value="3" />
-              </el-select>
-
-              <el-input v-model="repo.gitUrl" placeholder="Git 仓库地址" style="flex: 1" class="repo-git-url" />
-
-              <el-input v-model="repo.projectPath" placeholder="项目路径" style="width: 140px" />
-
-              <el-input v-model="repo.description" placeholder="描述" style="width: 100px" />
-
-              <el-input v-model="repo.alias" placeholder="别名" style="width: 100px" />
-
-              <el-button @click="removeRepository(index)" :disabled="form.repositories.length <= 1" type="danger" plain icon="Delete">
-              </el-button>
-            </div>
-          </div>
-
-          <el-button @click="addRepository" type="primary" plain style="margin-top: 8px; width: 100%;">
-            + 添加仓库
-          </el-button>
-        </el-form-item>
-        <el-form-item label="部署根目录">
-          <el-input v-model="form.deployPath" placeholder="例如: /data/deploy" />
-        </el-form-item>
         <el-form-item label="业务线">
           <el-input v-model="form.businessLine" />
         </el-form-item>
@@ -103,6 +68,25 @@
             <el-radio :label="1">启用</el-radio>
             <el-radio :label="0">禁用</el-radio>
           </el-radio-group>
+        </el-form-item>
+
+        <!-- 代码仓库管理 -->
+        <el-form-item label="代码仓库">
+          <el-button @click="handleAddRepository" type="primary" plain size="small">
+            + 新增代码仓库
+          </el-button>
+
+          <el-table :data="form.repositories" style="width: 100%; margin-top: 10px" border>
+            <el-table-column prop="name" label="仓库名称" width="200" />
+            <el-table-column prop="gitUrl" label="Git 地址" show-overflow-tooltip />
+            <el-table-column prop="gitAccountName" label="Git 账号" width="200" />
+            <el-table-column label="操作" width="150">
+              <template #default="{ $index }">
+                <el-button size="small" @click="handleEditRepository($index)">编辑</el-button>
+                <el-button size="small" type="danger" @click="handleDeleteRepository($index)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -113,18 +97,41 @@
       </template>
     </el-dialog>
 
+    <!-- 代码仓库编辑弹窗 -->
+    <el-dialog v-model="repositoryDialogVisible" :title="repositoryForm.id ? '编辑代码仓库' : '新增代码仓库'" width="600px">
+      <el-form :model="repositoryForm" label-width="120px">
+        <el-form-item label="仓库名称" required>
+          <el-input v-model="repositoryForm.name" placeholder="例如: 前端项目" />
+        </el-form-item>
+        <el-form-item label="Git 地址" required>
+          <el-input v-model="repositoryForm.gitUrl" placeholder="https://github.com/xxx/xxx.git" />
+        </el-form-item>
+        <el-form-item label="Git 账号" required>
+          <el-select v-model="repositoryForm.gitAccountId" placeholder="请选择 Git 账号" style="width: 100%">
+            <el-option
+              v-for="account in gitAccountList"
+              :key="account.id"
+              :label="`${account.accountName} (${account.gitPlatform})`"
+              :value="account.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="repositoryForm.description" type="textarea" :rows="3" placeholder="请输入描述（可选）" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="repositoryDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveRepository">确认</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 仓库详情弹窗 -->
-    <el-dialog v-model="repoDetailVisible" title="仓库详情" width="800px">
+    <el-dialog v-model="repoDetailVisible" title="代码仓库详情" width="800px">
       <el-table :data="currentRepositories" border>
-        <el-table-column prop="type" label="类型" width="100">
-          <template #default="{ row }">
-            {{ getRepositoryTypeLabel(row.type) }}
-          </template>
-        </el-table-column>
+        <el-table-column prop="subProjectName" label="仓库名称" width="200" />
         <el-table-column prop="gitUrl" label="Git 地址" show-overflow-tooltip />
-        <el-table-column prop="projectPath" label="项目路径" />
         <el-table-column prop="description" label="描述" />
-        <el-table-column prop="alias" label="别名" />
       </el-table>
     </el-dialog>
   </div>
@@ -134,40 +141,34 @@
 import { ref, reactive, onMounted } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import * as gitAccountApi from '../api/git-account'
+import * as subProjectApi from '../api/sub-project'
 
 const loading = ref(false)
 const tableData = ref([])
 const dialogVisible = ref(false)
 const repoDetailVisible = ref(false)
+const repositoryDialogVisible = ref(false)
 const currentRepositories = ref([])
-
-// 仓库类型映射
-const repositoryTypeMap = {
-  0: '前端',
-  1: '后端',
-  2: '管理后台',
-  3: '移动端'
-}
-
-// 获取仓库类型标签
-const getRepositoryTypeLabel = (type) => {
-  return repositoryTypeMap[type] || '未知'
-}
+const gitAccountList = ref([])
+const deletedRepositoryIds = ref([])
 
 const form = reactive({
   id: null,
   projectCode: '',
   projectName: '',
   projectOwner: '',
-  gitUsername: '',
-  gitPassword: '',
-  repositories: [
-    { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
-    { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
-  ],
-  deployPath: '',
   businessLine: '',
-  status: 1
+  status: 1,
+  repositories: []
+})
+
+const repositoryForm = reactive({
+  id: null,
+  name: '',
+  gitUrl: '',
+  gitAccountId: null,
+  description: ''
 })
 
 const queryForm = reactive({
@@ -176,6 +177,17 @@ const queryForm = reactive({
   status: ''
 })
 
+// 加载 Git 账号列表
+const loadGitAccounts = async () => {
+  try {
+    const res = await gitAccountApi.getGitAccountList({ status: 1 })
+    gitAccountList.value = res
+  } catch (error) {
+    console.error('加载 Git 账号列表失败:', error)
+  }
+}
+
+// 加载项目列表
 const fetchData = async () => {
   loading.value = true
   try {
@@ -186,21 +198,29 @@ const fetchData = async () => {
 
     const res = await request.get('/project/list', { params })
     // 处理状态值，确保是数字类型，避免菜单切换时触发 el-switch 的 change 事件
-    tableData.value = res.map(item => {
+    tableData.value = await Promise.all(res.map(async (item) => {
       let statusValue = 0
       if (item.status === 'ENABLED' || item.status === 1 || item.status === '1') {
         statusValue = 1
       } else if (item.status === 'DISABLED' || item.status === 0 || item.status === '0') {
         statusValue = 0
       }
-      // 确保 repositories 是数组
-      const repositories = Array.isArray(item.repositories) ? item.repositories : []
+
+      // 获取代码仓库数量
+      let repositoryCount = 0
+      try {
+        const repositories = await subProjectApi.getSubProjectsByProjectId(item.id)
+        repositoryCount = repositories.length
+      } catch (error) {
+        console.error('获取代码仓库数量失败:', error)
+      }
+
       return {
         ...item,
-        repositories,
+        repositoryCount,
         status: statusValue
       }
-    })
+    }))
   } finally {
     loading.value = false
   }
@@ -211,70 +231,96 @@ const handleAdd = () => {
   form.projectCode = ''
   form.projectName = ''
   form.projectOwner = ''
-  form.gitUsername = ''
-  form.gitPassword = ''
-  form.repositories = [
-    { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
-    { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
-  ]
-  form.deployPath = ''
   form.businessLine = ''
   form.status = 1
+  form.repositories = []
+  deletedRepositoryIds.value = []
   dialogVisible.value = true
 }
 
-const handleEdit = (row) => {
-  // 只复制需要的字段，避免包含已删除的数据库字段
+const handleEdit = async (row) => {
+  // 复制项目基本信息
   Object.assign(form, {
     id: row.id,
     projectCode: row.projectCode,
     projectName: row.projectName,
     projectOwner: row.projectOwner,
-    gitUsername: row.gitUsername || '',
-    gitPassword: row.gitPassword || '',
-    repositories: Array.isArray(row.repositories) && row.repositories.length > 0
-      ? JSON.parse(JSON.stringify(row.repositories))
-      : [
-          { type: 0, gitUrl: '', projectPath: '', description: '', alias: '' },
-          { type: 1, gitUrl: '', projectPath: '', description: '', alias: '' }
-        ],
-    deployPath: row.deployPath || '',
     businessLine: row.businessLine || '',
     status: row.status ?? 1
   })
+
+  // 加载代码仓库列表
+  try {
+    const repositories = await subProjectApi.getSubProjectsByProjectId(row.id)
+    form.repositories = repositories.map(repo => {
+      // 查找 Git 账号名称
+      const gitAccount = gitAccountList.value.find(acc => acc.id === repo.gitAccountId)
+      return {
+        id: repo.id,
+        name: repo.subProjectName,
+        gitUrl: repo.gitUrl,
+        gitAccountId: repo.gitAccountId,
+        gitAccountName: gitAccount ? `${gitAccount.accountName} (${gitAccount.gitPlatform})` : '',
+        description: repo.description
+      }
+    })
+  } catch (error) {
+    console.error('加载代码仓库失败:', error)
+    form.repositories = []
+  }
+
+  deletedRepositoryIds.value = []
   dialogVisible.value = true
 }
 
 const handleSubmit = async () => {
   try {
-    // 构建提交数据，只包含必要字段
-    const data = {
+    // 1. 先创建或更新项目
+    const projectData = {
       projectCode: form.projectCode,
       projectName: form.projectName,
       projectOwner: form.projectOwner,
-      gitUsername: form.gitUsername || null,
-      gitPassword: form.gitPassword || null,
-      repositories: form.repositories,
-      deployPath: form.deployPath || null,
       businessLine: form.businessLine || null,
       status: form.status
     }
 
+    let projectId
     if (form.id) {
-      // 编辑模式，添加 id
-      data.id = form.id
-      console.log('提交的数据:', JSON.stringify(data, null, 2))
-      await request.put('/project', data)
-      ElMessage.success('更新成功')
+      await request.put('/project', { ...projectData, id: form.id })
+      projectId = form.id
     } else {
-      console.log('提交的数据:', JSON.stringify(data, null, 2))
-      await request.post('/project', data)
-      ElMessage.success('创建成功')
+      const res = await request.post('/project', projectData)
+      projectId = res.id
     }
+
+    // 2. 处理代码仓库（子项目）
+    for (const repo of form.repositories) {
+      const subProjectData = {
+        projectId: projectId,
+        subProjectName: repo.name,
+        gitAccountId: repo.gitAccountId,
+        gitUrl: repo.gitUrl,
+        status: 1
+      }
+
+      if (repo.id) {
+        await subProjectApi.updateSubProject({ ...subProjectData, id: repo.id })
+      } else {
+        await subProjectApi.createSubProject(subProjectData)
+      }
+    }
+
+    // 3. 删除需要删除的子项目
+    for (const id of deletedRepositoryIds.value) {
+      await subProjectApi.deleteSubProject(id)
+    }
+
+    ElMessage.success(form.id ? '更新成功' : '创建成功')
     dialogVisible.value = false
     fetchData()
-  } catch (e) {
-    console.error('保存失败:', e)
+  } catch (error) {
+    console.error('提交失败:', error)
+    ElMessage.error('操作失败')
   }
 }
 
@@ -304,25 +350,87 @@ const handleToggleStatus = async (row) => {
   }
 }
 
-const handleViewRepositories = (row) => {
-  currentRepositories.value = Array.isArray(row.repositories) ? row.repositories : []
-  repoDetailVisible.value = true
-}
-
-const addRepository = () => {
-  form.repositories.push({
-    type: '',
-    gitUrl: '',
-    projectPath: '',
-    description: '',
-    alias: ''
-  })
-}
-
-const removeRepository = (index) => {
-  if (form.repositories.length > 1) {
-    form.repositories.splice(index, 1)
+const handleViewRepositories = async (row) => {
+  try {
+    const repositories = await subProjectApi.getSubProjectsByProjectId(row.id)
+    currentRepositories.value = repositories
+    repoDetailVisible.value = true
+  } catch (error) {
+    console.error('加载代码仓库详情失败:', error)
+    ElMessage.error('加载代码仓库详情失败')
   }
+}
+
+// 新增代码仓库
+const handleAddRepository = () => {
+  Object.assign(repositoryForm, {
+    id: null,
+    name: '',
+    gitUrl: '',
+    gitAccountId: null,
+    description: ''
+  })
+  repositoryDialogVisible.value = true
+}
+
+// 编辑代码仓库
+const handleEditRepository = (index) => {
+  const repo = form.repositories[index]
+  Object.assign(repositoryForm, {
+    ...repo
+  })
+  repositoryForm._index = index
+  repositoryDialogVisible.value = true
+}
+
+// 删除代码仓库
+const handleDeleteRepository = (index) => {
+  const repo = form.repositories[index]
+  if (repo.id) {
+    // 标记为需要删除
+    deletedRepositoryIds.value.push(repo.id)
+  }
+  form.repositories.splice(index, 1)
+}
+
+// 保存代码仓库
+const handleSaveRepository = () => {
+  // 验证必填字段
+  if (!repositoryForm.name) {
+    ElMessage.error('请输入仓库名称')
+    return
+  }
+  if (!repositoryForm.gitUrl) {
+    ElMessage.error('请输入 Git 地址')
+    return
+  }
+  if (!repositoryForm.gitAccountId) {
+    ElMessage.error('请选择 Git 账号')
+    return
+  }
+
+  // 查找 Git 账号名称
+  const gitAccount = gitAccountList.value.find(acc => acc.id === repositoryForm.gitAccountId)
+  const gitAccountName = gitAccount ? `${gitAccount.accountName} (${gitAccount.gitPlatform})` : ''
+
+  const repoData = {
+    id: repositoryForm.id,
+    name: repositoryForm.name,
+    gitUrl: repositoryForm.gitUrl,
+    gitAccountId: repositoryForm.gitAccountId,
+    gitAccountName: gitAccountName,
+    description: repositoryForm.description
+  }
+
+  if (repositoryForm._index !== undefined) {
+    // 编辑模式
+    form.repositories[repositoryForm._index] = repoData
+  } else {
+    // 新增模式
+    form.repositories.push(repoData)
+  }
+
+  repositoryDialogVisible.value = false
 }
 
 const handleSearch = () => {
@@ -338,29 +446,14 @@ const handleReset = () => {
   fetchData()
 }
 
-onMounted(fetchData)
+onMounted(async () => {
+  await loadGitAccounts()
+  await fetchData()
+})
 </script>
 
 <style scoped>
 .toolbar {
   margin-bottom: 20px;
-}
-
-.repo-container {
-  margin-bottom: 8px;
-  padding: 8px;
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
-  background-color: #fafafa;
-}
-
-.repo-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.repo-git-url {
-  min-width: 0;
 }
 </style>

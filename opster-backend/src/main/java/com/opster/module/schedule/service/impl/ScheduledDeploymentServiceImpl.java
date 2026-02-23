@@ -388,14 +388,13 @@ public class ScheduledDeploymentServiceImpl implements ScheduledDeploymentServic
      * @return 远程部署目录路径，格式：{deployPath}/{projectCode} 或 {deployPath}/{projectCode}/{projectPath}
      */
     private String buildRemoteDir(Project project, AppService service) {
-        String baseDir = project.getDeployPath() + "/" + project.getProjectCode();
-
-        // 如果配置了项目路径，则追加到基础路径后
-        if (StrUtil.isNotBlank(service.getProjectPath())) {
-            return baseDir + "/" + service.getProjectPath();
+        // 使用服务配置的部署路径
+        String serviceDeployPath = service.getDeployPath();
+        if (StrUtil.isBlank(serviceDeployPath)) {
+            throw new IllegalArgumentException("部署路径不能为空（请在服务配置中填写部署路径）");
         }
 
-        return baseDir;
+        return serviceDeployPath.trim().replaceAll("/+$", "");
     }
 
     /**

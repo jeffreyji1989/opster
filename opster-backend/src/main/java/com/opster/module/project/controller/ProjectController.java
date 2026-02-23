@@ -2,6 +2,7 @@ package com.opster.module.project.controller;
 
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.service.ProjectService;
+import com.opster.module.project.service.SubProjectService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +19,9 @@ public class ProjectController {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private SubProjectService subProjectService;
 
     /**
      * 获取所有项目
@@ -52,26 +56,32 @@ public class ProjectController {
      * 新增项目
      */
     @PostMapping
-    public boolean save(@RequestBody Project project) {
-        projectService.save(project);
-        return true;
+    public Project save(@RequestBody Project project) {
+        return projectService.save(project);
     }
 
     /**
      * 修改项目
      */
     @PutMapping
-    public boolean update(@RequestBody Project project) {
-        projectService.save(project);
-        return true;
+    public Project update(@RequestBody Project project) {
+        return projectService.save(project);
     }
 
     /**
      * 删除项目
      */
     @DeleteMapping("/{id}")
-    public boolean remove(@PathVariable Integer id) {
+    public void remove(@PathVariable Integer id) {
         projectService.deleteById(id);
-        return true;
+    }
+
+    /**
+     * 获取项目的所有子项目
+     * 注：新增接口，用于获取项目下的子项目列表
+     */
+    @GetMapping("/{id}/sub-projects")
+    public List<?> getSubProjects(@PathVariable Integer id) {
+        return subProjectService.findByProjectId(id);
     }
 }

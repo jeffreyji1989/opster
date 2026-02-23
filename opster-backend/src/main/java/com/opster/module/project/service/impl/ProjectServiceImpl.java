@@ -1,7 +1,6 @@
 package com.opster.module.project.service.impl;
 
 import com.opster.common.enums.Status;
-import com.opster.module.project.dto.RepositoryDTO;
 import com.opster.module.project.entity.Project;
 import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.project.service.ProjectService;
@@ -66,8 +65,6 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public Project save(Project project) {
-        // RepositoryDTO 已经移除了 username 和 password 字段
-        // Jackson 会自动忽略 JSON 中的未知字段，所以这里不需要特殊处理
         return projectRepository.save(project);
     }
 

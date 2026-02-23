@@ -1,5 +1,6 @@
 package com.opster.module.project.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.opster.common.BaseEntity;
 import com.opster.common.enums.Status;
 import com.opster.module.project.convert.RepositoriesConverter;
@@ -24,7 +25,17 @@ public class Project extends BaseEntity {
     private Integer id;
 
     /**
-     * 项目编号
+     * 项目 Git 仓库列表（JSON 格式存储）
+     * @deprecated 请使用 SubProject 管理子项目
+     */
+    @Deprecated
+    @Column(name = "repositories", columnDefinition = "TEXT")
+    @Convert(converter = RepositoriesConverter.class)
+    private List<RepositoryDTO> repositories;
+
+    /**
+     * 部署根目录
+     * 注：原字段名 deploy_path 已重命名为 deploy_root_path
      */
     @Column(name = "project_code", length = 50)
     private String projectCode;
@@ -41,30 +52,38 @@ public class Project extends BaseEntity {
     @Column(name = "project_owner")
     private String projectOwner;
 
-    /**
-     * 项目 Git 仓库列表（JSON 格式存储）
-     */
-    @Column(name = "repositories", columnDefinition = "TEXT")
-    @Convert(converter = RepositoriesConverter.class)
-    private List<RepositoryDTO> repositories;
+//    /**
+//     * 项目 Git 仓库列表（JSON 格式存储）
+//     * 已迁移到 SubProject，暂时保留以兼容
+//     */
+//    @Deprecated
+//    @Column(name = "repositories", columnDefinition = "TEXT")
+//    @Convert(converter = RepositoriesConverter.class)
+//    private List<RepositoryDTO> repositories;
 
     /**
      * Git 认证用户名（用于 HTTP/HTTPS 认证）
+     * 已迁移到 SubProject，暂时保留以兼容
      */
+    @Deprecated
     @Column(name = "git_username")
     private String gitUsername;
 
     /**
      * Git 认证密码（用于 HTTP/HTTPS 认证）
+     * 已迁移到 SubProject，暂时保留以兼容
      */
+    @Deprecated
     @Column(name = "git_password")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String gitPassword;
 
     /**
      * 部署根目录
+     * 注：原字段名 deploy_path 已重命名为 deploy_root_path
      */
-    @Column(name = "deploy_path")
-    private String deployPath;
+    @Column(name = "deploy_root_path")
+    private String deployRootPath;
 
     /**
      * 业务线名称
