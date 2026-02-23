@@ -155,18 +155,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             }
             LocalCommandUtils.createDirectories(buildDir);
 
-            // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
+            // 4. Git操作（在 sourceDir 源码目录下执行 clone 或 pull）
             actualLogger.info(">>> 开始Git操作...");
-            actualLogger.info(">>> 源码目录: " + buildDir);
-            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
+            actualLogger.info(">>> Git操作目录（源码目录）: " + sourceDir);
+            boolean gitSuccess = performGitOperation(sourceDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
             if (!gitSuccess) {
                 actualLogger.error("Git操作失败");
                 throw new Exception("Git operation failed");
             }
 
-            // 5. 使用数据库配置的编译路径，不再自动查找项目根目录
-            Path projectRoot = buildDir; // 使用配置的编译路径作为项目根目录
-            actualLogger.info("项目根目录: " + projectRoot);
+            // 5. 项目根目录 = 编译目录
+            Path projectRoot = buildDir;
+            actualLogger.info("项目根目录（编译目录）: " + projectRoot);
 
             // 5. Maven打包
             actualLogger.info(">>> 开始Maven打包...");
@@ -284,18 +284,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             }
             LocalCommandUtils.createDirectories(buildDir);
 
-            // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
+            // 4. Git操作（在 sourceDir 源码目录下执行 clone 或 pull）
             actualLogger.info(">>> 开始Git操作...");
-            actualLogger.info(">>> 源码目录: " + buildDir);
-            boolean gitSuccess = performGitOperation(buildDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
+            actualLogger.info(">>> Git操作目录（源码目录）: " + sourceDir);
+            boolean gitSuccess = performGitOperation(sourceDir, gitUrl, gitBranch, wsSession, actualLogger, username, password);
             if (!gitSuccess) {
                 actualLogger.error("Git操作失败");
                 throw new Exception("Git operation failed");
             }
 
-            // 5. 使用数据库配置的编译路径，不再自动查找package.json
-            Path projectRoot = buildDir; // 使用配置的编译路径作为项目根目录
-            actualLogger.info("项目根目录: " + projectRoot);
+            // 5. 项目根目录 = 编译目录
+            Path projectRoot = buildDir;
+            actualLogger.info("项目根目录（编译目录）: " + projectRoot);
 
             // ========== Node.js 版本管理 ==========
             String nodeBinDir = null;  // 用于存储 Node.js bin 目录路径
