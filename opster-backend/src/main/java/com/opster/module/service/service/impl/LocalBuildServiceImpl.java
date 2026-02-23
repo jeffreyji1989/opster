@@ -734,11 +734,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 查找npm项目根目录（包含package.json的目录）
+     * 优先选择包含 build 脚本的 package.json,避免找到子目录的工具项目
      */
     private Path findNpmProjectRoot(Path sourceDir) {
         // 先检查当前目录
         Path packageJson = sourceDir.resolve("package.json");
         if (Files.exists(packageJson)) {
+            // 检查是否包含 build 脚本
+            if (hasBuildScript(packageJson)) {
+                return sourceDir;
+            }
+            // 即使没有 build 脚本,也优先使用根目录
+            log.warn("根目录的 package.json 中未找到 build 脚本,但仍然使用根目录");
             return sourceDir;
         }
 
@@ -747,21 +754,38 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         Path subDirWithSameName = sourceDir.resolve(sourceDir.getFileName().toString());
         if (Files.exists(subDirWithSameName)) {
             Path subPackageJson = subDirWithSameName.resolve("package.json");
-            if (Files.exists(subPackageJson)) {
+            if (Files.exists(subPackageJson) && hasBuildScript(subPackageJson)) {
                 return subDirWithSameName;
             }
         }
 
-        // 递归查找子目录（最多3层）
+        // 递归查找子目录（最多3层）,优先选择包含 build 脚本的
         try (Stream<Path> paths = Files.walk(sourceDir, 3)) {
             return paths
                 .filter(Files::isDirectory)
-                .filter(dir -> Files.exists(dir.resolve("package.json")))
+                .filter(dir -> {
+                    Path pj = dir.resolve("package.json");
+                    return Files.exists(pj) && hasBuildScript(pj);
+                })
                 .findFirst()
-                .orElse(sourceDir);
+                .orElse(sourceDir); // 如果都找不到,返回根目录
         } catch (Exception e) {
             log.warn("Error finding npm project root", e);
             return sourceDir;
+        }
+    }
+
+    /**
+     * 检查 package.json 是否包含 build 脚本
+     */
+    private boolean hasBuildScript(Path packageJsonPath) {
+        try {
+            String content = Files.readString(packageJsonPath);
+            // 简单检查是否包含 "build" 脚本
+            return content.contains("\"build\"") || content.contains("'build'");
+        } catch (Exception e) {
+            log.warn("Failed to read package.json: {}", packageJsonPath, e);
+            return false;
         }
     }
 
