@@ -209,6 +209,7 @@ public class BatchDeploymentServiceImpl implements BatchDeploymentService {
 
     /**
      * 执行批量发版（核心逻辑）
+     * 修复：移除 future.get() 阻塞等待，改用异步回调避免死锁
      */
     private void executeBatchDeployment(BatchTaskInfo taskInfo) {
         // 创建信号量控制并发数
@@ -219,67 +220,79 @@ public class BatchDeploymentServiceImpl implements BatchDeploymentService {
         log.info("开始执行批量发版任务: {}, 并发数: {}", taskInfo.batchTaskId, taskInfo.concurrency);
 
         for (Integer serviceId : taskInfo.serviceIds) {
-            executorService.submit(() -> {
-                try {
-                    // 获取信号量许可
-                    semaphore.acquire();
+            // 先获取信号量许可（控制并发数）
+            try {
+                semaphore.acquire();
+            } catch (InterruptedException e) {
+                log.error("获取信号量许可失败: serviceId={}", serviceId, e);
+                Thread.currentThread().interrupt();
+                latch.countDown();
+                continue;
+            }
 
-                    ServiceTaskStatus status = taskInfo.serviceStatusMap.get(serviceId);
-                    if (status != null && "CANCELLED".equals(status.getStatus())) {
-                        // 任务已被取消
-                        latch.countDown();
-                        return;
-                    }
+            ServiceTaskStatus status = taskInfo.serviceStatusMap.get(serviceId);
+            if (status != null && "CANCELLED".equals(status.getStatus())) {
+                // 任务已被取消
+                semaphore.release();
+                latch.countDown();
+                continue;
+            }
 
-                    // 更新状态为运行中
-                    if (status != null) {
-                        status.setStatus("RUNNING");
-                        status.setStartTime(System.currentTimeMillis());
-                        status.setMessage("正在部署...");
-                    }
+            // 更新状态为运行中
+            if (status != null) {
+                status.setStatus("RUNNING");
+                status.setStartTime(System.currentTimeMillis());
+                status.setMessage("正在部署...");
+            }
 
+            // 获取服务名称
+            AppService service = appServiceRepository.findById(serviceId).orElse(null);
+            if (service != null) {
+                if (status != null) {
+                    status.setServiceName("Service-" + serviceId);
+                }
+
+                // 执行部署（异步回调处理结果，不再阻塞等待）
+                CompletableFuture<Integer> future = deploymentOrchestrationService.executeDeploymentAsync(serviceId);
+
+                // 使用 whenComplete 异步回调处理结果
+                future.whenComplete((recordId, throwable) -> {
                     try {
-                        // 获取服务名称
-                        AppService service = appServiceRepository.findById(serviceId).orElse(null);
-                        if (service != null) {
+                        if (throwable != null) {
+                            // 部署失败
+                            log.error("服务部署失败: serviceId={}", serviceId, throwable);
                             if (status != null) {
-                                status.setServiceName("Service-" + serviceId);
+                                status.setStatus("FAILED");
+                                status.setMessage("部署失败: " + throwable.getMessage());
+                                status.setEndTime(System.currentTimeMillis());
                             }
-
-                            // 执行部署（等待异步结果）
-                            CompletableFuture<Integer> future = deploymentOrchestrationService.executeDeploymentAsync(serviceId);
-                            Integer recordId = future.get(); // 阻塞等待完成
-
-                            // 更新状态为完成
+                        } else {
+                            // 部署成功
+                            log.info("服务部署成功: serviceId={}, recordId={}", serviceId, recordId);
                             if (status != null) {
                                 status.setStatus("COMPLETED");
                                 status.setMessage("部署成功");
                                 status.setDeploymentRecordId(recordId);
                                 status.setEndTime(System.currentTimeMillis());
                             }
-
-                            log.info("服务部署成功: serviceId={}, recordId={}", serviceId, recordId);
-                        } else {
-                            throw new Exception("服务不存在: " + serviceId);
                         }
-                    } catch (Exception e) {
-                        log.error("服务部署失败: serviceId={}", serviceId, e);
-                        if (status != null) {
-                            status.setStatus("FAILED");
-                            status.setMessage("部署失败: " + e.getMessage());
-                            status.setEndTime(System.currentTimeMillis());
-                        }
+                    } finally {
+                        // 释放信号量许可
+                        semaphore.release();
+                        latch.countDown();
                     }
-
-                } catch (InterruptedException e) {
-                    log.error("批量任务被中断: serviceId={}", serviceId, e);
-                    Thread.currentThread().interrupt();
-                } finally {
-                    // 释放信号量许可
-                    semaphore.release();
-                    latch.countDown();
+                });
+            } else {
+                // 服务不存在，直接标记失败
+                log.error("服务不存在: serviceId={}", serviceId);
+                if (status != null) {
+                    status.setStatus("FAILED");
+                    status.setMessage("服务不存在: " + serviceId);
+                    status.setEndTime(System.currentTimeMillis());
                 }
-            });
+                semaphore.release();
+                latch.countDown();
+            }
         }
 
         try {

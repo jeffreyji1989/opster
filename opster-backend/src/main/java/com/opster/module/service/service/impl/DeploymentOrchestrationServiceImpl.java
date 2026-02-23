@@ -1091,9 +1091,20 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     /**
      * 重启远程服务（使用 WebSocketSession）
+     * 前端项目不需要停止/重启进程，只需替换静态文件即可
      */
     private void restartRemoteService(Session sshSession, AppService service,
                                      WebSocketSession wsSession) throws Exception {
+        // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+        Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+
+        // 前端项目(serviceType=0)不需要重启，直接返回
+        if (serviceTypeValue != null && serviceTypeValue == 0) {
+            sendMessage(wsSession, ">>> 前端项目静态文件已更新，无需重启进程");
+            return;
+        }
+
+        // 后端项目需要停止旧进程并启动新进程
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
         Server server = serverRepository.findById(service.getServerId())
@@ -1132,6 +1143,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     /**
      * 停止远程服务（内部方法）
+     * 修复：移除危险的 pkill 命令，避免误杀其他服务的进程
      */
     private void stopRemoteService(Session sshSession, String remoteDir,
                                   WebSocketSession wsSession) throws Exception {
@@ -1147,15 +1159,19 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             "    fi; " +
             "  fi; " +
             "  rm -f app.pid; " +
-            "fi && " +
-            "pkill -f 'opster-backend.*jar' 2>/dev/null || true",
-            remoteDir
+            "fi; " +
+            "# 清理当前目录下可能残留的Java进程（只匹配当前目录的jar文件）" +
+            "for pid in $(lsof -t '%s'/*.jar 2>/dev/null); do " +
+            "  kill $pid 2>/dev/null || true; " +
+            "done",
+            remoteDir, remoteDir
         );
         executeRemoteCommand(wsSession, sshSession, stopCmd);
     }
 
     /**
      * 停止远程服务（内部方法，使用 LocalDeploymentLogger）
+     * 修复：移除危险的 pkill 命令，避免误杀其他服务的进程
      */
     private void stopRemoteService(Session sshSession, String remoteDir,
                                   LocalDeploymentLogger logger) throws Exception {
@@ -1171,18 +1187,32 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             "    fi; " +
             "  fi; " +
             "  rm -f app.pid; " +
-            "fi && " +
-            "pkill -f 'opster-backend.*jar' 2>/dev/null || true",
-            remoteDir
+            "fi; " +
+            "# 清理当前目录下可能残留的Java进程（只匹配当前目录的jar文件）" +
+            "for pid in $(lsof -t '%s'/*.jar 2>/dev/null); do " +
+            "  kill $pid 2>/dev/null || true; " +
+            "done",
+            remoteDir, remoteDir
         );
         executeRemoteCommand(logger, sshSession, stopCmd);
     }
 
     /**
      * 重启远程服务（使用 LocalDeploymentLogger）
+     * 前端项目不需要停止/重启进程，只需替换静态文件即可
      */
     private void restartRemoteService(Session sshSession, AppService service,
                                      LocalDeploymentLogger logger) throws Exception {
+        // 获取服务类型（优先使用新的 serviceType 字段，兼容旧的 repositoryType）
+        Integer serviceTypeValue = service.getServiceType() != null ? service.getServiceType() : service.getRepositoryType();
+
+        // 前端项目(serviceType=0)不需要重启，直接返回
+        if (serviceTypeValue != null && serviceTypeValue == 0) {
+            logger.log(">>> 前端项目静态文件已更新，无需重启进程");
+            return;
+        }
+
+        // 后端项目需要停止旧进程并启动新进程
         Project project = projectRepository.findById(service.getProjectId())
             .orElseThrow(() -> new Exception("项目不存在"));
         Server server = serverRepository.findById(service.getServerId())
