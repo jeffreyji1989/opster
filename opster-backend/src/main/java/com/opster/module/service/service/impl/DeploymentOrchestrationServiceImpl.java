@@ -170,6 +170,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             Path artifact = localBuildService.buildArtifact(
+                serviceId,
                 projectCode,
                 extractServiceAliasFromGitUrl(gitUrl),
                 repositoryType,
@@ -180,8 +181,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 wsSession,
                 gitUsername,
                 gitPassword,
-                service.getNodeVersion(),  // 传递 Node.js 版本
-                logger  // 传递发版日志记录器，实现实时写入
+                service.getNodeVersion(),
+                logger
             );
 
             // 验证打包产物是否生成成功
@@ -1515,6 +1516,7 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
 
             Path artifact = localBuildService.buildArtifact(
+                serviceId,
                 projectCode,
                 extractServiceAliasFromGitUrl(gitUrl),
                 repositoryType,
@@ -1525,8 +1527,8 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
                 null, // 无 WebSocket
                 gitUsername,
                 gitPassword,
-                service.getNodeVersion(),  // 传递 Node.js 版本
-                logger  // 传递发版日志记录器，实现实时写入
+                service.getNodeVersion(),
+                logger
             );
 
             // 验证打包产物是否生成成功

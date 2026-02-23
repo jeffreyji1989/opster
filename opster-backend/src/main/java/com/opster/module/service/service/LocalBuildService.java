@@ -15,6 +15,7 @@ public interface LocalBuildService {
     /**
      * 执行本地打包（完整流程）
      *
+     * @param serviceId 服务ID，用于从数据库获取sourcePath和compilePath
      * @param projectCode 项目编码
      * @param serviceAlias 服务别名
      * @param repositoryType 仓库类型（BACKEND/FRONTEND/ADMIN/MOBILE）
@@ -30,7 +31,8 @@ public interface LocalBuildService {
      * @return 打包产物的本地路径（jar文件或zip文件）
      * @throws Exception 打包过程中发生的异常
      */
-    Path buildArtifact(String projectCode,
+    Path buildArtifact(Integer serviceId,
+                      String projectCode,
                       String serviceAlias,
                       RepositoryType repositoryType,
                       String gitUrl,
@@ -46,6 +48,7 @@ public interface LocalBuildService {
     /**
      * 执行本地Maven打包
      *
+     * @param serviceId 服务ID，用于从数据库获取sourcePath和compilePath
      * @param projectCode 项目编码
      * @param serviceAlias 服务别名
      * @param gitUrl Git仓库地址
@@ -60,7 +63,8 @@ public interface LocalBuildService {
      * @return 打包产物的本地路径（jar文件）
      * @throws Exception 打包过程中发生的异常
      */
-    Path buildMavenArtifact(String projectCode,
+    Path buildMavenArtifact(Integer serviceId,
+                           String projectCode,
                            String serviceAlias,
                            String gitUrl,
                            String gitBranch,
@@ -75,6 +79,7 @@ public interface LocalBuildService {
     /**
      * 执行本地npm打包
      *
+     * @param serviceId 服务ID，用于从数据库获取sourcePath和compilePath
      * @param projectCode 项目编码
      * @param serviceAlias 服务别名
      * @param gitUrl Git仓库地址
@@ -89,7 +94,8 @@ public interface LocalBuildService {
      * @return 打包产物的本地路径（zip文件）
      * @throws Exception 打包过程中发生的异常
      */
-    Path buildNpmArtifact(String projectCode,
+    Path buildNpmArtifact(Integer serviceId,
+                         String projectCode,
                          String serviceAlias,
                          String gitUrl,
                          String gitBranch,

@@ -5,6 +5,11 @@ import com.opster.common.LocalCommandUtils;
 import com.opster.common.LocalDeploymentLogger;
 import com.opster.common.enums.RepositoryType;
 import com.opster.config.OpsterProperties;
+import com.opster.module.project.entity.Project;
+import com.opster.module.project.repository.ProjectRepository;
+import com.opster.module.service.entity.AppService;
+import com.opster.module.service.repository.AppServiceRepository;
+import com.opster.module.service.service.AppServiceService;
 import com.opster.module.service.service.LocalBuildService;
 import com.opster.module.service.service.NodeVersionService;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +27,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
@@ -38,10 +44,19 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     @Autowired
     private NodeVersionService nodeVersionService;
 
+    @Autowired
+    private AppServiceService appServiceService;
+
+    @Autowired
+    private AppServiceRepository appServiceRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
+
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Override
-    public Path buildArtifact(String projectCode,
+    public Path buildArtifact(Integer serviceId, String projectCode,
                              String serviceAlias,
                              RepositoryType repositoryType,
                              String gitUrl,
@@ -57,15 +72,15 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         if (repositoryType == RepositoryType.FRONTEND ||
             repositoryType == RepositoryType.MOBILE) {
             // 前端或移动端项目使用npm构建，传递 nodeVersion 参数
-            return buildNpmArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
+            return buildNpmArtifact(serviceId, projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
         } else {
             // 后端或管理后台项目使用Maven构建，nodeVersion 参数作为 JDK 版本传递
-            return buildMavenArtifact(projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
+            return buildMavenArtifact(serviceId, projectCode, serviceAlias, gitUrl, gitBranch, buildCmd, projectPath, wsSession, username, password, nodeVersion, deploymentLogger);
         }
     }
 
     @Override
-    public Path buildMavenArtifact(String projectCode,
+    public Path buildMavenArtifact(Integer serviceId, String projectCode,
                                    String serviceAlias,
                                    String gitUrl,
                                    String gitBranch,
@@ -103,22 +118,53 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 actualLogger.info("JDK版本: " + jdkVersion);
             }
 
-            // 2. 准备工作目录
-            Path sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+            // 2. 准备工作目录 - 使用数据库中保存的路径
+            Path sourceDir;
+            if (serviceId != null) {
+                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
+                if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null) {
+                    sourceDir = Paths.get(serviceOpt.get().getSourcePath());
+                    actualLogger.info("使用数据库配置的源码目录: " + sourceDir);
+                } else {
+                    sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+                    actualLogger.info("使用默认源码目录: " + sourceDir);
+                }
+            } else {
+                sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+                actualLogger.info("使用默认源码目录: " + sourceDir);
+            }
+
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
+            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录或使用数据库中配置的编译路径）
             Path buildDir = sourceDir;
-            if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+            if (serviceId != null) {
+                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
+                if (serviceOpt.isPresent() && serviceOpt.get().getCompilePath() != null && !serviceOpt.get().getCompilePath().isEmpty()) {
+                    // 使用数据库中配置的编译路径
+                    buildDir = sourceDir.resolve(serviceOpt.get().getCompilePath());
+                    actualLogger.info("使用数据库配置的编译目录: " + buildDir);
+                } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+                    // 使用传入的项目路径
+                    // 防止路径穿越攻击
+                    if (projectPath.contains("..")) {
+                        actualLogger.error("项目路径包含非法字符: " + projectPath);
+                        throw new Exception("Invalid project path");
+                    }
+                    buildDir = sourceDir.resolve(projectPath);
+                    actualLogger.info("使用传入的项目路径: " + buildDir);
+                }
+            } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
                 if (projectPath.contains("..")) {
                     actualLogger.error("项目路径包含非法字符: " + projectPath);
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
-                LocalCommandUtils.createDirectories(buildDir);
                 actualLogger.info("创建项目路径子目录: " + buildDir);
             }
+
+            LocalCommandUtils.createDirectories(buildDir);
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
             actualLogger.info(">>> 开始Git操作...");
@@ -129,8 +175,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 throw new Exception("Git operation failed");
             }
 
-            // 5. 查找项目根目录
-            Path projectRoot = findMavenProjectRoot(buildDir);
+            // 5. 使用数据库配置的编译路径，不再自动查找项目根目录
+            Path projectRoot = buildDir; // 使用配置的编译路径作为项目根目录
             actualLogger.info("项目根目录: " + projectRoot);
 
             // 5. Maven打包
@@ -177,7 +223,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     @Override
-    public Path buildNpmArtifact(String projectCode,
+    public Path buildNpmArtifact(Integer serviceId, String projectCode,
                                 String serviceAlias,
                                 String gitUrl,
                                 String gitBranch,
@@ -212,22 +258,53 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             actualLogger.info("Git分支: " + gitBranch);
             actualLogger.info("构建命令: " + buildCmd);
 
-            // 2. 准备工作目录
-            Path sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+            // 2. 准备工作目录 - 使用数据库中保存的路径
+            Path sourceDir;
+            if (serviceId != null) {
+                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
+                if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null) {
+                    sourceDir = Paths.get(serviceOpt.get().getSourcePath());
+                    actualLogger.info("使用数据库配置的源码目录: " + sourceDir);
+                } else {
+                    sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+                    actualLogger.info("使用默认源码目录: " + sourceDir);
+                }
+            } else {
+                sourceDir = getUniqueSourceDir(projectCode, serviceAlias, gitUrl);
+                actualLogger.info("使用默认源码目录: " + sourceDir);
+            }
+
             LocalCommandUtils.createDirectories(sourceDir);
 
-            // 3. 处理项目路径（在 source 目录下按 projectPath 创建子目录）
+            // 3. 处理项目路径（使用数据库中配置的编译路径或传入的项目路径）
             Path buildDir = sourceDir;
-            if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+            if (serviceId != null) {
+                Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
+                if (serviceOpt.isPresent() && serviceOpt.get().getCompilePath() != null && !serviceOpt.get().getCompilePath().isEmpty()) {
+                    // 使用数据库中配置的编译路径
+                    buildDir = sourceDir.resolve(serviceOpt.get().getCompilePath());
+                    actualLogger.info("使用数据库配置的编译目录: " + buildDir);
+                } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
+                    // 使用传入的项目路径
+                    // 防止路径穿越攻击
+                    if (projectPath.contains("..")) {
+                        actualLogger.error("项目路径包含非法字符: " + projectPath);
+                        throw new Exception("Invalid project path");
+                    }
+                    buildDir = sourceDir.resolve(projectPath);
+                    actualLogger.info("使用传入的项目路径: " + buildDir);
+                }
+            } else if (cn.hutool.core.util.StrUtil.isNotBlank(projectPath)) {
                 // 防止路径穿越攻击
                 if (projectPath.contains("..")) {
                     actualLogger.error("项目路径包含非法字符: " + projectPath);
                     throw new Exception("Invalid project path");
                 }
                 buildDir = sourceDir.resolve(projectPath);
-                LocalCommandUtils.createDirectories(buildDir);
                 actualLogger.info("创建项目路径子目录: " + buildDir);
             }
+
+            LocalCommandUtils.createDirectories(buildDir);
 
             // 4. Git操作（在 buildDir 目录下执行 clone 或 pull）
             actualLogger.info(">>> 开始Git操作...");
@@ -238,8 +315,8 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 throw new Exception("Git operation failed");
             }
 
-            // 5. 查找package.json（前端项目根目录）
-            Path projectRoot = findNpmProjectRoot(buildDir);
+            // 5. 使用数据库配置的编译路径，不再自动查找package.json
+            Path projectRoot = buildDir; // 使用配置的编译路径作为项目根目录
             actualLogger.info("项目根目录: " + projectRoot);
 
             // ========== Node.js 版本管理 ==========
@@ -442,6 +519,29 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     /**
+     * 根据服务ID获取编译路径
+     *
+     * @param serviceId 服务ID
+     * @return 编译路径，如果服务不存在或未配置编译路径则返回null
+     */
+    public Path getCompilePathByServiceId(Integer serviceId) {
+        if (serviceId == null) {
+            return null;
+        }
+
+        Optional<AppService> serviceOpt = appServiceRepository.findById(serviceId);
+        if (serviceOpt.isPresent() && serviceOpt.get().getSourcePath() != null && serviceOpt.get().getCompilePath() != null) {
+            String sourcePath = serviceOpt.get().getSourcePath();
+            String compilePath = serviceOpt.get().getCompilePath();
+
+            // 合并源码路径和编译路径
+            return Paths.get(sourcePath).resolve(compilePath);
+        }
+
+        return null;
+    }
+
+    /**
      * 执行Git操作（clone或pull）
      *
      * @param sourceDir 源码目录
@@ -548,39 +648,6 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         } catch (Exception e) {
             log.error("Error building authenticated Git URL", e);
             return gitUrl;
-        }
-    }
-
-    /**
-     * 查找Maven项目根目录（包含pom.xml的目录）
-     */
-    private Path findMavenProjectRoot(Path sourceDir) {
-        // 先检查当前目录
-        Path pomXml = sourceDir.resolve("pom.xml");
-        if (Files.exists(pomXml)) {
-            return sourceDir;
-        }
-
-        // 检查是否存在与当前目录同名的子目录（常见于 monorepo 结构）
-        // 例如：sourceDir = /path/to/backend，检查 /path/to/backend/backend 是否存在
-        Path subDirWithSameName = sourceDir.resolve(sourceDir.getFileName().toString());
-        if (Files.exists(subDirWithSameName)) {
-            Path subPomXml = subDirWithSameName.resolve("pom.xml");
-            if (Files.exists(subPomXml)) {
-                return subDirWithSameName;
-            }
-        }
-
-        // 递归查找子目录（最多3层）
-        try (Stream<Path> paths = Files.walk(sourceDir, 3)) {
-            return paths
-                .filter(Files::isDirectory)
-                .filter(dir -> Files.exists(dir.resolve("pom.xml")))
-                .findFirst()
-                .orElse(sourceDir);
-        } catch (Exception e) {
-            log.warn("Error finding Maven project root", e);
-            return sourceDir;
         }
     }
 
@@ -729,49 +796,6 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         } catch (Exception e) {
             log.error("在目录 {} 中查找 jar 文件时发生错误", targetDir, e);
             return null;
-        }
-    }
-
-    /**
-     * 查找npm项目根目录（包含package.json的目录）
-     * 优先选择包含 build 脚本的 package.json,避免找到子目录的工具项目
-     */
-    private Path findNpmProjectRoot(Path sourceDir) {
-        // 先检查当前目录
-        Path packageJson = sourceDir.resolve("package.json");
-        if (Files.exists(packageJson)) {
-            // 检查是否包含 build 脚本
-            if (hasBuildScript(packageJson)) {
-                return sourceDir;
-            }
-            // 即使没有 build 脚本,也优先使用根目录
-            log.warn("根目录的 package.json 中未找到 build 脚本,但仍然使用根目录");
-            return sourceDir;
-        }
-
-        // 检查是否存在与当前目录同名的子目录（常见于 monorepo 结构）
-        // 例如：sourceDir = /path/to/manage，检查 /path/to/manage/manage 是否存在
-        Path subDirWithSameName = sourceDir.resolve(sourceDir.getFileName().toString());
-        if (Files.exists(subDirWithSameName)) {
-            Path subPackageJson = subDirWithSameName.resolve("package.json");
-            if (Files.exists(subPackageJson) && hasBuildScript(subPackageJson)) {
-                return subDirWithSameName;
-            }
-        }
-
-        // 递归查找子目录（最多3层）,优先选择包含 build 脚本的
-        try (Stream<Path> paths = Files.walk(sourceDir, 3)) {
-            return paths
-                .filter(Files::isDirectory)
-                .filter(dir -> {
-                    Path pj = dir.resolve("package.json");
-                    return Files.exists(pj) && hasBuildScript(pj);
-                })
-                .findFirst()
-                .orElse(sourceDir); // 如果都找不到,返回根目录
-        } catch (Exception e) {
-            log.warn("Error finding npm project root", e);
-            return sourceDir;
         }
     }
 
