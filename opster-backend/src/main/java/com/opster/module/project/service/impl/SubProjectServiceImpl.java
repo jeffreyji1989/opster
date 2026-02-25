@@ -111,12 +111,8 @@ public class SubProjectServiceImpl implements SubProjectService {
 
     @Override
     public boolean deploy(Integer id) {
-        // TODO: 实现部署逻辑
-        // 1. 查询子项目配置
-        // 2. 创建/获取 AppService 实例
-        // 3. 调用 DeploymentOrchestrationService.executeDeployment(serviceId)
-        // 4. 返回部署结果
-        return true;
+        // 子项目部署功能未启用，请使用 Service 模块的部署功能
+        throw new UnsupportedOperationException("子项目部署功能暂未实现，请使用服务管理模块的部署功能");
     }
 
     @Override

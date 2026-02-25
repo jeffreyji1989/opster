@@ -115,11 +115,19 @@ public class AppService extends BaseEntity {
 
     /**
      * 源码目录（系统自动计算，只读）
-     * 计算公式：opster.deploy-path + projectCode + "source"
-     * 同一 Git 仓库的多个服务共享同一个源码目录
+     * 计算公式：{deployPath}/{projectCode}/source/{serviceRepoAlias}
+     * 兼容旧数据：如果 serviceRepoAlias 为空，使用旧路径 {deployPath}/{projectCode}/source
      */
     @Column(name = "source_path", length = 500)
     private String sourcePath;
+
+    /**
+     * 服务仓库别名（用于构建源码目录结构）
+     * 从 Git URL 自动提取，例如：opster-backend、opster-frontend
+     * 用于形成源码目录：{deployPath}/{projectCode}/source/{serviceRepoAlias}/
+     */
+    @Column(name = "service_repo_alias", length = 100)
+    private String serviceRepoAlias;
 
     /**
      * 编译目录（用户手动填写）

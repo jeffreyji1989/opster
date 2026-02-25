@@ -26,8 +26,12 @@
           <el-icon><Cpu /></el-icon>
           <span>服务管理</span>
         </el-menu-item>
+        <el-menu-item index="/service-monitor">
+          <el-icon><Monitor /></el-icon>
+          <span>服务监控</span>
+        </el-menu-item>
         <el-menu-item index="/monitor">
-          <el-icon><View /></el-icon>
+          <el-icon><DataAnalysis /></el-icon>
           <span>项目监控</span>
         </el-menu-item>
         <el-menu-item index="/deployment-record">

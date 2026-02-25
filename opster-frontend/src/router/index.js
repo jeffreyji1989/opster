@@ -4,6 +4,7 @@ import Dashboard from '../views/Dashboard.vue'
 import Project from '../views/Project.vue'
 import Server from '../views/Server.vue'
 import Service from '../views/Service.vue'
+import ServiceMonitor from '../views/ServiceMonitor.vue'
 import Monitor from '../views/Monitor.vue'
 import DeploymentRecord from '../views/DeploymentRecord.vue'
 import ScheduledDeployment from '../views/ScheduledDeployment.vue'
@@ -34,6 +35,11 @@ const routes = [
         path: 'service',
         name: 'Service',
         component: Service
+      },
+      {
+        path: 'service-monitor',
+        name: 'ServiceMonitor',
+        component: ServiceMonitor
       },
       {
         path: 'monitor',

@@ -103,6 +103,27 @@ public class AppServiceServiceImpl implements AppServiceService {
             service.setSourcePath(computedSourcePath);
         }
 
+        // 自动提取仓库别名（仅在新增时或 serviceRepoAlias 为空时）
+        if (isNew || (service.getServiceRepoAlias() == null || service.getServiceRepoAlias().isEmpty())) {
+            String gitUrl = service.getRepoGitUrl();
+            if (StrUtil.isBlank(gitUrl) && service.getProjectId() != null) {
+                // 尝试从项目配置获取
+                Optional<Project> projectOptional = projectRepository.findById(service.getProjectId());
+                if (projectOptional.isPresent()) {
+                    Project project = projectOptional.get();
+                    if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
+                        gitUrl = project.getRepositories().get(0).getGitUrl();
+                    }
+                }
+            }
+
+            if (StrUtil.isNotBlank(gitUrl)) {
+                String repoAlias = extractServiceRepoAliasFromGitUrl(gitUrl);
+                service.setServiceRepoAlias(repoAlias);
+                log.info("自动提取服务仓库别名：{} (从 Git URL: {})", repoAlias, gitUrl);
+            }
+        }
+
         // 如果 serviceType 为空，尝试从 repositoryType 获取（兼容旧数据）
         if (service.getServiceType() == null && service.getRepositoryType() != null) {
             service.setServiceType(service.getRepositoryType());
@@ -156,7 +177,8 @@ public class AppServiceServiceImpl implements AppServiceService {
 
     /**
      * 计算源码目录
-     * 公式：opster.deploy-path + projectCode + "source"
+     * 公式：{deployPath}/{projectCode}/source/{serviceRepoAlias}
+     * 兼容旧数据：如果 serviceRepoAlias 为空，使用旧路径 {deployPath}/{projectCode}/source
      */
     private String computeSourcePath(AppService service) {
         if (service.getProjectId() == null) {
@@ -176,8 +198,31 @@ public class AppServiceServiceImpl implements AppServiceService {
             return null;
         }
 
-        // 构建路径：{deployPath}/{projectCode}/source
-        return deployPath + "/" + projectCode + "/source";
+        // 获取 Git URL 以提取仓库别名
+        String gitUrl = service.getRepoGitUrl();
+        if (StrUtil.isBlank(gitUrl)) {
+            // 尝试从项目配置获取
+            if (project.getRepositories() != null && !project.getRepositories().isEmpty()) {
+                gitUrl = project.getRepositories().get(0).getGitUrl();
+            }
+        }
+
+        // 尝试提取仓库别名
+        String repoAlias = service.getServiceRepoAlias();
+        if (StrUtil.isBlank(repoAlias) && StrUtil.isNotBlank(gitUrl)) {
+            repoAlias = extractServiceRepoAliasFromGitUrl(gitUrl);
+            // 自动填充到服务对象
+            service.setServiceRepoAlias(repoAlias);
+        }
+
+        // 构建路径
+        if (StrUtil.isNotBlank(repoAlias)) {
+            // 新路径：{deployPath}/{projectCode}/source/{repoAlias}
+            return deployPath + "/" + projectCode + "/source/" + repoAlias;
+        } else {
+            // 旧路径（兼容旧数据）：{deployPath}/{projectCode}/source
+            return deployPath + "/" + projectCode + "/source";
+        }
     }
 
     @Override
@@ -381,6 +426,60 @@ public class AppServiceServiceImpl implements AppServiceService {
         }
 
         throw new RuntimeException("未找到Git仓库地址");
+    }
+
+    /**
+     * 从 Git URL 提取服务仓库别名（用于源码目录结构）
+     * 支持多种 Git URL 格式：
+     * - HTTPS: https://github.com/xxx/opster-backend.git → opster-backend
+     * - HTTP: http://git.example.com/project/frontend.git → frontend
+     * - SSH: git@github.com:xxx/repo.git → repo
+     *
+     * @param gitUrl Git 仓库地址
+     * @return 服务仓库别名（仓库名，不含 .git 后缀）
+     */
+    private String extractServiceRepoAliasFromGitUrl(String gitUrl) {
+        if (StrUtil.isBlank(gitUrl)) {
+            return null;
+        }
+
+        try {
+            String repoName = "";
+
+            // 处理 SSH 格式：git@github.com:xxx/repo.git
+            if (gitUrl.startsWith("git@")) {
+                int colonIndex = gitUrl.indexOf(':');
+                if (colonIndex > 0) {
+                    String pathPart = gitUrl.substring(colonIndex + 1);
+                    String[] parts = pathPart.split("/");
+                    repoName = parts[parts.length - 1];
+                }
+            }
+            // 处理 HTTPS/HTTP 格式
+            else {
+                String urlWithoutProtocol = gitUrl.replaceFirst("^https?://", "");
+                int atIndex = urlWithoutProtocol.indexOf('@');
+                if (atIndex > 0) {
+                    urlWithoutProtocol = urlWithoutProtocol.substring(atIndex + 1);
+                }
+                String[] parts = urlWithoutProtocol.split("/");
+                repoName = parts[parts.length - 1];
+            }
+
+            // 移除 .git 后缀
+            if (repoName.endsWith(".git")) {
+                repoName = repoName.substring(0, repoName.length() - 4);
+            }
+
+            // 移除其他可能的特殊字符
+            repoName = repoName.replaceAll("[^a-zA-Z0-9_-]", "");
+
+            return StrUtil.isBlank(repoName) ? null : repoName;
+
+        } catch (Exception e) {
+            log.warn("从 Git URL 提取服务仓库别名失败：{}, 使用默认值", gitUrl, e);
+            return null;
+        }
     }
 
     /**

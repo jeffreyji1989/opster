@@ -432,23 +432,29 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Override
     public Path getSourceDir(String projectCode, String serviceAlias) {
-        // 源码目录：opster.deploy-path + 项目编码 + source
+        // 源码目录：opster.deploy-path + 项目编码 + git 地址名字（后缀）+ source
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "source");
+        // serviceAlias 即为从 git 地址提取的仓库名
+        String gitRepoName = (serviceAlias != null && !serviceAlias.isEmpty()) ? serviceAlias : "source";
+        return Paths.get(deployPath, projectCode, gitRepoName, "source");
     }
 
     @Override
     public Path getArtifactsDir(String projectCode, String serviceAlias) {
-        // 统一使用项目级别的 artifacts 目录
+        // 编译产物目录：opster.deploy-path + 项目编码 + git 地址名字（后缀）+ artifacts
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "artifacts");
+        // serviceAlias 即为从 git 地址提取的仓库名
+        String gitRepoName = (serviceAlias != null && !serviceAlias.isEmpty()) ? serviceAlias : "artifacts";
+        return Paths.get(deployPath, projectCode, gitRepoName, "artifacts");
     }
 
     @Override
     public Path getLogsDir(String projectCode, String serviceAlias) {
-        // 统一使用项目级别的 logs 目录
+        // 日志目录：opster.deploy-path + 项目编码 + git 地址名字（后缀）+ logs
         String deployPath = opsterProperties.getDeployPath();
-        return Paths.get(deployPath, projectCode, "logs");
+        // serviceAlias 即为从 git 地址提取的仓库名
+        String gitRepoName = (serviceAlias != null && !serviceAlias.isEmpty()) ? serviceAlias : "logs";
+        return Paths.get(deployPath, projectCode, gitRepoName, "logs");
     }
 
     @Override
@@ -572,6 +578,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
             } else {
                 // 目录不存在，执行clone
                 logger.info("Git仓库不存在，执行git clone...");
+                // 创建源码目录的父目录（即 {deployPath}/{projectCode}/{gitRepoName}）
+                Path gitRepoDir = sourceDir.getParent();
+                LocalCommandUtils.createDirectories(gitRepoDir);
                 // 清空source目录
                 if (LocalCommandUtils.directoryExists(sourceDir)) {
                     deleteDirectory(sourceDir);

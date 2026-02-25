@@ -4,17 +4,18 @@ server:
     connection-timeout: -1
     keep-alive-timeout: -1
 
+
 spring:
+  profiles:
+    active: gs
   application:
     name: opster-backend
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://39.155.134.146:33306/opster?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${OPSTER_DB_USERNAME}
-    password: ${OPSTER_DB_PWD}
+    driver-class-name: org.sqlite.JDBC
+    url: jdbc:sqlite:${OPSTER_DB_URL:opster.db}
 
   jpa:
-    database-platform: org.hibernate.dialect.MySQLDialect
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update
     show-sql: true

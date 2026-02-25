@@ -590,7 +590,6 @@ import 'xterm/css/xterm.css'
 import { Terminal } from 'xterm'
 import { AttachAddon } from 'xterm-addon-attach'
 import { FitAddon } from 'xterm-addon-fit'
-import { SearchAddon } from 'xterm-addon-search'
 
 const loading = ref(false)
 const tableData = ref([])
