@@ -180,7 +180,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
                 actualMavenCmd = "mvn clean package -DskipTests";
                 actualLogger.info("Maven命令为空，使用默认命令: " + actualMavenCmd);
             }
-            boolean mavenSuccess = executeMavenBuild(projectRoot, actualMavenCmd, actualMavenCmd, wsSession, actualLogger);
+            boolean mavenSuccess = executeMavenBuild(projectRoot, actualMavenCmd, jdkVersion, wsSession, actualLogger);
             if (!mavenSuccess) {
                 actualLogger.error("Maven打包失败");
                 throw new Exception("Maven build failed");
@@ -725,7 +725,23 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
         // 传递 logger 参数以记录命令输出
         // 使用增强后的 Maven 命令以获取更详细的编译输出
-        return LocalCommandUtils.executeCommand(projectRoot, fullMavenCmd, wsSession, envVars, logger);
+
+        // 在 Windows 上，使用 set 命令设置环境变量后执行 mvn
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("win")) {
+            // Windows 格式：set JAVA_HOME=xxx && set M2_HOME=xxx && set PATH=xxx && mvn clean install
+            String windowsJavaHome = correctedJavaHome.replace("/", "\\");
+            String windowsMavenHome = mavenHomeForEnv.replace("/", "\\");
+            fullMavenCmd = String.format("set JAVA_HOME=%s && set M2_HOME=%s && set PATH=%s\bin;%s\bin;%%PATH%% && %s",
+                windowsJavaHome,
+                windowsMavenHome,
+                windowsJavaHome,
+                windowsMavenHome,
+                fullMavenCmd);
+            logger.info("Windows 环境变量设置：" + fullMavenCmd);
+        }
+
+        return LocalCommandUtils.executeCommand(projectRoot, fullMavenCmd, wsSession, null, logger);
     }
 
     /**
@@ -946,7 +962,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
         // 将指定版本的 Node.js bin 目录添加到 PATH 最前面
         // 这样执行 npm/node 时会优先使用指定版本
-        String newPath = nodeBinDir + ":" + systemPath;
+        // Windows 使用分号 (;) 作为路径分隔符，Unix 使用冒号 (:)
+        String pathSeparator = System.getProperty("os.name").toLowerCase().contains("win") ? ";" : ":";
+        String newPath = nodeBinDir + pathSeparator + systemPath;
 
         return new String[]{"PATH=" + newPath};
     }

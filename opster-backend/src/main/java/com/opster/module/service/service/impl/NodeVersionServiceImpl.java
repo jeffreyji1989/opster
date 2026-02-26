@@ -29,6 +29,15 @@ public class NodeVersionServiceImpl implements NodeVersionService {
     private static final Pattern VERSION_PATTERN = Pattern.compile("^v\\d+\\.\\d+\\.\\d+$");
 
     /**
+     * 判断当前操作系统是否为 Windows
+     * @return true 如果是 Windows 系统
+     */
+    private boolean isWindows() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        return osName.contains("win");
+    }
+
+    /**
      * 展开路径中的 ~ 符号为用户的 home 目录
      * @param path 可能包含 ~ 的路径
      * @return 展开后的绝对路径
@@ -56,8 +65,15 @@ public class NodeVersionServiceImpl implements NodeVersionService {
                 return versions;
             }
 
-            // 检查 versions/node 目录
-            File versionsDir = new File(nvmDir, "versions/node");
+            // 检查 versions/node 目录 (Unix) 或 nvm 根目录 (Windows)
+            File versionsDir;
+            if (isWindows()) {
+                // Windows nvm-windows: 直接在 nvm 目录下查找 v* 目录
+                versionsDir = nvmDir;
+            } else {
+                // Unix nvm: 在 versions/node 目录下查找
+                versionsDir = new File(nvmDir, "versions/node");
+            }
             if (!versionsDir.exists()) {
                 log.warn("nvm versions 目录不存在: {}", versionsDir.getAbsolutePath());
                 return versions;
@@ -94,16 +110,29 @@ public class NodeVersionServiceImpl implements NodeVersionService {
 
         try {
             String nvmPath = expandTilde(opsterProperties.getNodejs().getNvmPath());
-            String nvmScript = nvmPath + "/nvm.sh";
+            // 根据操作系统选择 nvm 脚本
+            String osName = System.getProperty("os.name").toLowerCase();
+            String nvmScript;
+            String nvmCmd;
 
-            // 检查 nvm.sh 是否存在
-            File nvmSh = new File(nvmScript);
-            if (!nvmSh.exists()) {
-                throw new Exception("nvm.sh 不存在: " + nvmScript);
+            if (osName.contains("win")) {
+                // Windows 使用 nvm.exe
+                nvmScript = nvmPath + "\\nvm.exe";
+                nvmCmd = "nvm";
+            } else {
+                // Linux/Mac 使用 nvm.sh
+                nvmScript = nvmPath + "/nvm.sh";
+                nvmCmd = "source " + nvmScript + " && nvm";
+            }
+
+            // 检查 nvm 脚本是否存在
+            File nvmFile = new File(nvmScript);
+            if (!nvmFile.exists()) {
+                throw new Exception("nvm 脚本不存在：" + nvmScript);
             }
 
             // 构建 nvm install 命令
-            String command = String.format("source %s && nvm install %s", nvmScript, version);
+            String command = String.format("%s install %s", nvmCmd, version);
 
             log.info("开始安装 Node.js 版本: {}", version);
             log.info("nvm 路径: {}", nvmPath);
@@ -133,8 +162,15 @@ public class NodeVersionServiceImpl implements NodeVersionService {
         }
 
         String nvmPath = expandTilde(opsterProperties.getNodejs().getNvmPath());
-        // nvm Node.js 安装路径：~/.nvm/versions/node/v{version}/bin/node
-        return nvmPath + "/versions/node/" + version + "/bin/node";
+
+        // 根据操作系统返回正确的 Node.js 可执行文件路径
+        if (isWindows()) {
+            // Windows nvm-windows: {nvmPath}\v{version}\node.exe
+            return nvmPath + "\\" + version + "\\node.exe";
+        } else {
+            // Unix nvm: {nvmPath}/versions/node/v{version}/bin/node
+            return nvmPath + "/versions/node/" + version + "/bin/node";
+        }
     }
 
     @Override
