@@ -1,6 +1,6 @@
 opster:
   deploy-path: D:\deploy
-  maven-home: C:\soft\apache-maven-3.9.9
+  maven-home: C:\soft\apache-maven-3.9.12
   java-home: C:\soft\Java\jdk-17.0.6
   encrypt-key: "opster-secret-key"
   # JDK 多版本配置
@@ -10,7 +10,7 @@ opster:
   # Node.js 版本管理配置
   nodejs:
     enabled: true
-    nvm-path: C:\soft\nvm\nvm.exe
+    nvm-path: C:\soft\nvm
     auto-install: true
     install-timeout: 3000
   # 异步线程池配置
