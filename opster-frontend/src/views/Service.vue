@@ -85,11 +85,6 @@
           {{ formatLastDeployTime(scope.row.lastDeployTime) }}
         </template>
       </el-table-column>
-      <el-table-column label="启用状态" width="120">
-        <template #default="scope">
-          <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleEnabled(scope.row)" />
-        </template>
-      </el-table-column>
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="scope">
           <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
@@ -99,8 +94,8 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <!-- 后端和管理后台项目显示：启动/重启、日志、终端 -->
-                <template v-if="scope.row.serviceType === 1 || scope.row.serviceType === 2">
+                <!-- 仅后端项目显示：启动/重启、日志、终端 -->
+                <template v-if="scope.row.serviceType === 1">
                   <el-dropdown-item command="restart">启动/重启</el-dropdown-item>
                   <el-dropdown-item command="log">日志</el-dropdown-item>
                   <el-dropdown-item command="terminal">终端</el-dropdown-item>
@@ -111,6 +106,7 @@
                 <el-dropdown-item command="rollback_quick">快速回退（上一版本）</el-dropdown-item>
                 <el-dropdown-item command="rollback_history">选择历史版本回退</el-dropdown-item>
                 <el-dropdown-item command="edit" divided>编辑</el-dropdown-item>
+                <el-dropdown-item command="toggle_enabled">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-dropdown-item>
                 <el-dropdown-item command="delete" style="color: #f56c6c;">删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
@@ -154,6 +150,7 @@
                   </div>
                 </template>
 
+            <!-- 第一行：服务名称、Git 地址、分支 -->
             <el-row :gutter="20">
               <el-col :span="6">
                 <el-form-item label="服务名称" label-width="80px">
@@ -177,7 +174,7 @@
                       :label="`${sub.subProjectName} - ${sub.gitUrl}`"
                       :value="sub.id" />
                   </el-select>
-                  <!-- 编辑模式：显示 Git 地址输入框（只读或可编辑） -->
+                  <!-- 编辑模式：显示 Git 地址输入框（只读） -->
                   <el-input
                     v-else
                     v-model="item.repoGitUrl"
@@ -190,18 +187,42 @@
                   </el-input>
                   <span style="font-size: 12px; color: #999;">
                     <span v-if="!form.id">可选择已有仓库或手动输入</span>
-                    <span v-else>编辑模式下 Git 地址不可修改（如需更换请删除后重新创建）</span>
+                    <span v-else>编辑模式下 Git 地址不可修改</span>
                   </span>
                 </el-form-item>
               </el-col>
               <el-col :span="6">
+                <el-form-item label="分支" label-width="50px">
+                  <el-input v-model="item.gitBranch" placeholder="默认 master" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+
+            <!-- 第二行：服务类型、服务器、端口号、环境 -->
+            <el-row :gutter="20">
+              <el-col :span="6">
+                <el-form-item label="服务类型" label-width="80px">
+                  <el-select v-model="item.serviceType" style="width: 100%" @change="(val) => handleServiceTypeChange(item, val)">
+                    <el-option label="后端" :value="1" />
+                    <el-option label="前端" :value="0" />
+                    <el-option label="管理后台" :value="2" />
+                    <el-option label="移动端" :value="3" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
                 <el-form-item label="服务器" label-width="70px">
                   <el-select v-model="item.serverId" placeholder="选择服务器" style="width: 100%">
                     <el-option v-for="s in servers" :key="s.id" :label="`${s.alias} (${s.ip})`" :value="s.id" />
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="4">
+              <el-col :span="5">
+                <el-form-item label="端口" label-width="50px">
+                  <el-input-number v-model="item.port" :min="1" :max="65535" :step="1" controls-position="right" style="width: 100%" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="5">
                 <el-form-item label="环境" label-width="50px">
                   <el-select v-model="item.env" style="width: 100%">
                     <el-option label="生产" value="生产" />
@@ -209,53 +230,68 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="4">
-                <el-form-item label="端口" label-width="50px">
-                  <el-input-number v-model="item.port" :min="1" :max="65535" :step="1" controls-position="right" style="width: 100%" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="4">
-                <el-form-item label="分支" label-width="50px">
-                  <el-input v-model="item.gitBranch" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="4">
-                <el-form-item label="状态" label-width="50px">
-                  <el-switch v-model="item.status" :active-value="1" :inactive-value="0" active-text="启用" style="width: 100px" />
-                </el-form-item>
-              </el-col>
             </el-row>
 
+            <!-- 第三行：编译版本、编译路径 -->
             <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="服务类型" label-width="80px">
-                  <el-select v-model="item.serviceType" style="width: 100%">
-                    <el-option label="前端" :value="0" />
-                    <el-option label="后端" :value="1" />
-                    <el-option label="管理后台" :value="2" />
-                    <el-option label="移动端" :value="3" />
+              <el-col :span="12">
+                <!-- 前端/移动端项目显示 Node.js 版本选择 -->
+                <el-form-item v-if="isFrontendType(item.serviceType)" label="编译版本" label-width="90px">
+                  <el-select
+                    v-model="item.nodeVersion"
+                    placeholder="选择或输入版本"
+                    filterable
+                    allow-create
+                    default-first-option
+                    style="width: 100%">
+                    <el-option label="使用系统默认" value="" />
+                    <el-option v-for="version in installedNodeVersions"
+                               :key="version"
+                               :label="version"
+                               :value="version" />
                   </el-select>
+                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                    Node.js 版本，格式：v18.17.0，留空使用系统默认
+                  </div>
+                </el-form-item>
+                <!-- 后端/管理后台项目显示 JDK 版本配置 -->
+                <el-form-item v-else-if="isBackendType(item.serviceType)" label="编译版本" label-width="90px">
+                  <el-select
+                    v-model="item.nodeVersion"
+                    placeholder="选择 JDK 版本"
+                    style="width: 100%">
+                    <el-option label="使用系统默认" value="" />
+                    <el-option label="JDK 8" value="jdk8" />
+                    <el-option label="JDK 17" value="jdk17" />
+                  </el-select>
+                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
+                    JDK 版本，留空使用系统默认
+                  </div>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <el-form-item label="编译路径" label-width="80px">
+              <el-col :span="12">
+                <el-form-item label="编译路径" label-width="90px">
                   <el-input v-model="item.compilePath" placeholder="例如：target、dist" clearable />
                   <span style="font-size: 12px; color: #999;">
                     编译工作目录（手动填写）
                   </span>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
-                <!-- 仅后端项目显示日志路径 -->
-                <el-form-item v-if="item.serviceType === 1" label="日志路径" label-width="80px">
-                  <!-- 新增模式：显示计算后的路径（只读） -->
-                  <el-input v-if="!form.id" :value="getComputedLogPath(item)" readonly />
-                  <!-- 编辑模式：显示服务端返回的值（可编辑） -->
-                  <el-input v-else v-model="item.logPath" />
+            </el-row>
+
+            <!-- 第四行：编译脚本 -->
+            <el-row :gutter="20">
+              <el-col :span="24">
+                <el-form-item label="编译脚本" label-width="90px">
+                  <el-input v-model="item.buildScript" type="textarea" :rows="2" placeholder="后端：mvn clean package -DskipTests；前端：npm install && npm run build" />
+                  <span style="font-size: 12px; color: #999;">
+                    统一 Maven 命令和构建命令
+                  </span>
                 </el-form-item>
               </el-col>
             </el-row>
 
+            <!-- 第五行：部署路径 -->
             <el-row :gutter="20">
               <el-col :span="24">
                 <el-form-item label="部署路径" label-width="80px">
@@ -277,54 +313,8 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="编译脚本" label-width="90px">
-                  <el-input v-model="item.buildScript" type="textarea" :rows="2" placeholder="后端：mvn clean package -DskipTests；前端：npm install && npm run build" />
-                  <span style="font-size: 12px; color: #999;">
-                    统一 Maven 命令和构建命令
-                  </span>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <!-- 前端项目显示 Node.js 版本配置 -->
-                <el-form-item v-if="item.serviceType !== 1" label="Node版本" label-width="90px">
-                  <el-select
-                    v-model="item.nodeVersion"
-                    placeholder="选择或输入版本"
-                    filterable
-                    allow-create
-                    default-first-option
-                    style="width: 100%">
-                    <el-option label="使用系统默认" value="" />
-                    <el-option v-for="version in installedNodeVersions"
-                               :key="version"
-                               :label="version"
-                               :value="version" />
-                  </el-select>
-                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
-                    格式：v18.17.0，留空使用系统默认
-                  </div>
-                </el-form-item>
-                <!-- 后端项目显示 JDK 版本选择 -->
-                <el-form-item v-else label="JDK版本" label-width="90px">
-                  <el-select
-                    v-model="item.nodeVersion"
-                    placeholder="选择JDK版本"
-                    style="width: 100%">
-                    <el-option label="使用系统默认" value="" />
-                    <el-option label="JDK 8" value="jdk8" />
-                    <el-option label="JDK 17" value="jdk17" />
-                  </el-select>
-                  <div style="font-size: 12px; color: #999; margin-top: 5px;">
-                    选择构建使用的 JDK 版本
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <!-- 仅后端项目显示启动脚本 -->
-            <el-row :gutter="20" v-if="item.serviceType === 1">
+            <!-- 仅后端/管理后台项目显示启动脚本 -->
+            <el-row :gutter="20" v-if="isBackendType(item.serviceType)">
               <el-col :span="24">
                 <el-form-item label="启动脚本" label-width="80px">
                   <el-input v-model="item.startScript" type="textarea" :rows="2" placeholder="./start.sh" />
@@ -356,7 +346,7 @@
     <el-dialog v-model="logVisible" title="服务日志" width="70%">
       <pre class="log-content">{{ logContent }}</pre>
     </el-dialog>
-    
+
     <!-- Action Result Dialog -->
     <el-dialog v-model="resultVisible" title="执行结果" width="80%" :close-on-click-modal="false">
       <div class="result-header">
@@ -365,7 +355,7 @@
             {{ resultStatus === 'success' ? '执行成功' : '执行完成' }}
           </el-tag>
           <el-tag v-if="deployProgress > 0 && deployProgress < 100" type="info">
-            进度: {{ deployProgress }}%
+            进度：{{ deployProgress }}%
           </el-tag>
         </el-space>
       </div>
@@ -388,7 +378,7 @@
           <!-- Chat Window -->
           <div class="chat-window">
             <div class="chat-header">
-              <el-tag type="info">AI命令生成器</el-tag>
+              <el-tag type="info">AI 命令生成器</el-tag>
             </div>
             <div class="chat-content" ref="chatContent">
               <div v-for="(msg, index) in chatMessages" :key="index" :class="['chat-message', msg.type]">
@@ -438,7 +428,7 @@
         <!-- Right Side: Terminal -->
         <div class="terminal-right">
           <div class="terminal-header">
-            <el-tag type="success">SSH终端</el-tag>
+            <el-tag type="success">SSH 终端</el-tag>
           </div>
           <div class="terminal-content" ref="terminalRef"></div>
         </div>
@@ -468,7 +458,7 @@
               <div class="version-info">
                 <p><strong>部署时间:</strong> {{ version.createTime }}</p>
                 <p v-if="version.versionDescription"><strong>版本描述:</strong> {{ version.versionDescription }}</p>
-                <p v-if="version.gitCommitHash"><strong>Git提交:</strong> <code>{{ version.gitCommitHash.substring(0, 8) }}</code></p>
+                <p v-if="version.gitCommitHash"><strong>Git 提交:</strong> <code>{{ version.gitCommitHash.substring(0, 8) }}</code></p>
                 <p v-if="version.backupFilePath"><strong>备份文件:</strong> <code>{{ version.backupFilePath }}</code></p>
               </div>
               <div class="version-actions">
@@ -530,7 +520,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="versionDescription" label="版本描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="gitCommitHash" label="Git提交" width="100">
+        <el-table-column prop="gitCommitHash" label="Git 提交" width="100">
           <template #default="scope">
             <code v-if="scope.row.gitCommitHash">{{ scope.row.gitCommitHash.substring(0, 8) }}</code>
             <span v-else>-</span>
@@ -552,7 +542,7 @@
           <el-tag type="info">标准 Spring Boot 启动脚本</el-tag>
           <el-tag type="success">自动检查端口占用</el-tag>
           <el-tag type="warning">优雅停止旧进程</el-tag>
-          <el-tag type="primary">日志输出到logs/目录</el-tag>
+          <el-tag type="primary">日志输出到 logs/ 目录</el-tag>
           <el-tag type="info">内容可编辑</el-tag>
         </el-space>
       </div>
@@ -639,16 +629,19 @@ const generatedScript = ref('')
 const currentEditingItem = ref(null)
 const uploadingScript = ref(false) // 上传中的状态
 
-// 服务类型映射
+// 服务类型映射（支持 4 种类型）
 const serviceTypeMap = {
   0: '前端',
   1: '后端',
   2: '管理后台',
   3: '移动端'
 }
-const getServiceTypeLabel = (type) => serviceTypeMap[type] || '未知'
+const getServiceTypeLabel = (type) => {
+  if (type === undefined || type === null) return '未知'
+  return serviceTypeMap[type] || '后端'
+}
 
-// 服务类型颜色映射
+// 服务类型颜色映射（支持 4 种类型）
 const getServiceTypeColor = (type) => {
   const colorMap = {
     0: 'success',    // 前端 - 绿色
@@ -656,8 +649,14 @@ const getServiceTypeColor = (type) => {
     2: 'warning',    // 管理后台 - 橙色
     3: 'info'        // 移动端 - 灰色
   }
-  return colorMap[type] || 'default'
+  return colorMap[type] || 'primary'
 }
+
+// 判断是否为后端类型（后端/管理后台）
+const isBackendType = (type) => [1, 2].includes(type)
+
+// 判断是否为前端类型（前端/移动端）
+const isFrontendType = (type) => [0, 3].includes(type)
 
 const form = reactive({
   id: null,
@@ -685,7 +684,7 @@ const handleProjectChange = async (projectId) => {
     // 如果有 SubProject 配置，添加第一个空白服务（默认选择第一个仓库）
     if (availableSubProjects.value.length > 0) {
       const firstSubProject = availableSubProjects.value[0]
-      const isFrontend = ['frontend', 'admin', 'mobile'].includes(firstSubProject.projectType)
+      const isFrontend = ['frontend', 'mobile'].includes(firstSubProject.projectType)
 
       // 获取项目信息以计算部署路径
       const project = projects.value.find(p => p.id === projectId)
@@ -728,7 +727,7 @@ const handleProjectChange = async (projectId) => {
 
         // 构建配置
         buildScript: isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests',
-        nodeVersion: '',
+        nodeVersion: isFrontend ? 'v14.18.2' : 'jdk8',  // 前端默认 v14.18.2，后端默认 jdk8
 
         // 启动脚本
         startScript: isFrontend ? '' : './start.sh',
@@ -755,7 +754,7 @@ const handleProjectChange = async (projectId) => {
         logPath: '',
         compilePath: '',
         buildScript: 'mvn clean package -DskipTests',
-        nodeVersion: '',
+        nodeVersion: 'jdk8',  // 后端默认 JDK 版本
         startScript: './start.sh',
         status: 1
       }]
@@ -784,7 +783,7 @@ const handleProjectChange = async (projectId) => {
       logPath: '',
       compilePath: '',
       buildScript: 'mvn clean package -DskipTests',
-      nodeVersion: '',
+      nodeVersion: 'jdk8',  // 后端默认 JDK 版本
       startScript: './start.sh',
       status: 1
     }]
@@ -808,10 +807,11 @@ const handleSubProjectChange = (itemIndex, subProjectId) => {
       item.projectType = selectedSubProject.projectType
       item.serviceType = getServiceTypeValue(selectedSubProject.projectType)
 
-      // 根据项目类型调整默认值
-      const isFrontend = ['frontend', 'admin', 'mobile'].includes(selectedSubProject.projectType)
+      // 根据项目类型调整默认值（只有 frontend 和 mobile 是前端项目）
+      const isFrontend = ['frontend', 'mobile'].includes(selectedSubProject.projectType)
       item.port = isFrontend ? 80 : 8080
       item.buildScript = isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests'
+      item.nodeVersion = isFrontend ? 'v14.18.2' : 'jdk8'  // 前端默认 v14.18.2，后端默认 jdk8
     }
   } else {
     // 手动输入或清空
@@ -833,6 +833,57 @@ const copyGitUrl = (url) => {
   }).catch(() => {
     ElMessage.error('复制失败')
   })
+}
+
+// 处理服务类型变化时自动更新编译脚本
+const handleServiceTypeChange = (item, serviceType) => {
+  // 类型配置映射
+  const typeConfig = {
+    0: { // 前端
+      port: 80,
+      buildScript: 'npm install && npm run build',
+      showStartScript: false,
+      defaultVersion: 'v14.18.2'  // 前端默认 Node.js 版本
+    },
+    1: { // 后端
+      port: 8080,
+      buildScript: 'mvn clean package -DskipTests',
+      showStartScript: true,
+      defaultVersion: 'jdk8'  // 后端默认 JDK 版本
+    },
+    2: { // 管理后台
+      port: 8080,
+      buildScript: 'mvn clean package -DskipTests',
+      showStartScript: true,
+      defaultVersion: 'jdk8'  // 管理后台默认 JDK 版本
+    },
+    3: { // 移动端
+      port: 80,
+      buildScript: 'npm install && npm run build',
+      showStartScript: false,
+      defaultVersion: 'v14.18.2'  // 移动端默认 Node.js 版本
+    }
+  }
+
+  const config = typeConfig[serviceType] || typeConfig[1]
+
+  // 更新编译脚本
+  item.buildScript = config.buildScript
+
+  // 更新默认端口
+  item.port = config.port
+
+  // 更新默认编译版本
+  item.nodeVersion = config.defaultVersion
+
+  // 更新启动脚本（只有后端/管理后台需要）
+  if (config.showStartScript) {
+    item.startScript = item.startScript || './start.sh'
+  } else {
+    item.startScript = ''
+  }
+
+  ElMessage.success('已根据服务类型自动更新配置')
 }
 
 // 自动填充部署路径
@@ -860,17 +911,17 @@ const handleAutoFillDeployPath = (item) => {
     item.deployPath = fullPath
     ElMessage.success('已自动填充部署路径')
   } else {
-    ElMessage.warning('无法计算部署路径，请检查项目配置')
+    ElMessage.warning('无法自动填充部署路径，请检查项目配置')
   }
 }
 
 // 将项目类型字符串转换为服务类型数字值
 const getServiceTypeValue = (projectType) => {
   const typeMap = {
-    'frontend': 0,
-    'backend': 1,
-    'admin': 2,
-    'mobile': 3
+    'frontend': 0,   // 前端项目
+    'backend': 1,    // 后端项目
+    'admin': 2,      // 管理后台
+    'mobile': 3      // 移动端
   }
   return typeMap[projectType] ?? 1
 }
@@ -906,7 +957,7 @@ const formatLastDeployTime = (time) => {
     const now = new Date()
     const diff = now - date
 
-    // 小于1小时
+    // 小于 1 小时
     if (diff < 3600000) {
       const minutes = Math.floor(diff / 60000)
       return minutes < 1 ? '刚刚' : `${minutes}分钟前`
@@ -943,7 +994,7 @@ const getProjectName = (id) => {
   return p ? p.projectName : id
 }
 
-// 获取项目显示文本（项目名称-项目别名）
+// 获取项目显示文本（项目名称 - 项目别名）
 const getProjectDisplay = (row) => {
   const p = projects.value.find(i => i.id === row.projectId)
   if (!p) return row.projectId
@@ -951,7 +1002,7 @@ const getProjectDisplay = (row) => {
   const projectName = p.projectName
 
   // 从项目的 repositories 中找到对应的仓库别名
-  // 通过 git仓库地址 + 项目路径 来区分
+  // 通过 git 仓库地址 + 项目路径来区分
   let repoAlias = ''
   if (p.repositories && Array.isArray(p.repositories)) {
     const repo = p.repositories.find(r =>
@@ -963,7 +1014,7 @@ const getProjectDisplay = (row) => {
     }
   }
 
-  // 组合显示：项目名称-别名
+  // 组合显示：项目名称 - 别名
   if (repoAlias) {
     return `${projectName}-${repoAlias}`
   }
@@ -975,7 +1026,7 @@ const getServerName = (id) => {
   return s ? s.alias : id
 }
 
-// 获取服务器IP
+// 获取服务器 IP
 const getServerIp = (id) => {
   const s = servers.value.find(i => i.id === id)
   return s ? s.ip : id
@@ -1146,28 +1197,28 @@ const fetchData = async () => {
     if (queryForm.env !== '') params.env = queryForm.env
     if (queryForm.runStatus !== '') params.runStatus = queryForm.runStatus
     if (queryForm.status !== '') params.status = queryForm.status
-    
+
     const [serviceRes, projectRes, serverRes] = await Promise.all([
       request.get('/service/list', { params }),
       request.get('/project/list'),
       request.get('/server/list')
     ])
-    
+
     tableData.value = serviceRes.map(item => ({
       ...item,
       status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
     }))
-    
+
     projects.value = projectRes.map(item => ({
       ...item,
       status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
     }))
-    
+
     servers.value = serverRes.map(item => ({
       ...item,
       status: (item.status === 'ENABLED' || item.status === 1 || item.status === '1') ? 1 : 0
     }))
-    
+
     const lines = new Set()
     projects.value.forEach(p => p.businessLine && lines.add(p.businessLine))
     businessLines.value = Array.from(lines)
@@ -1183,7 +1234,7 @@ const handleAdd = () => {
   dialogVisible.value = true
 }
 
-// 添加服务（支持同一个 Git 地址添加多个服务）
+// 添加服务（支持同一个 Git 地址配置多个部署服务）
 const handleAddService = () => {
   // 获取当前项目信息
   const project = projects.value.find(p => p.id === form.projectId)
@@ -1200,6 +1251,7 @@ const handleAddService = () => {
   let defaultServiceType = 1
   let defaultPort = 8080
   let defaultBuildScript = 'mvn clean package -DskipTests'
+  let defaultNodeVersion = 'jdk8'  // 默认后端 JDK 版本
 
   if (availableSubProjects.value.length > 0) {
     const firstSubProject = availableSubProjects.value[0]
@@ -1211,9 +1263,10 @@ const handleAddService = () => {
     defaultProjectType = firstSubProject.projectType
     defaultServiceType = getServiceTypeValue(firstSubProject.projectType)
 
-    const isFrontend = ['frontend', 'admin', 'mobile'].includes(firstSubProject.projectType)
+    const isFrontend = ['frontend', 'mobile'].includes(firstSubProject.projectType)
     defaultPort = isFrontend ? 80 : 8080
     defaultBuildScript = isFrontend ? 'npm install && npm run build' : 'mvn clean package -DskipTests'
+    defaultNodeVersion = isFrontend ? 'v14.18.2' : 'jdk8'  // 前端默认 v14.18.2，后端默认 jdk8
 
     // 计算默认部署路径
     const deployRootPath = project.deployRootPath || project.deployPath || ''
@@ -1241,8 +1294,8 @@ const handleAddService = () => {
     logPath: '',
     compilePath: '',
     buildScript: defaultBuildScript,
-    nodeVersion: '',
-    startScript: defaultProjectType === 'backend' ? './start.sh' : '',
+    nodeVersion: defaultNodeVersion,  // 根据类型设置默认版本
+    startScript: defaultProjectType === 'backend' || defaultProjectType === 'admin' ? './start.sh' : '',
     status: 1
   })
   // 自动展开新添加的面板
@@ -1337,37 +1390,41 @@ const handleSubmit = async () => {
   }
 
   try {
+    // 统一处理新增和编辑 - 自动计算日志路径
+    const services = form.items.map(item => {
+      const serviceItem = { ...item, projectId: form.projectId }
+      // 如果日志路径为空，自动计算
+      if (!serviceItem.logPath) {
+        serviceItem.logPath = getComputedLogPath(item)
+      }
+      return serviceItem
+    })
+
     if (form.id) {
-      // 编辑
-      const data = { ...form.items[0], projectId: form.projectId }
-      await request.put('/service', data)
+      // 编辑模式 - 只更新当前服务
+      await request.put('/service', services[0])
       ElMessage.success('更新成功')
     } else {
-      // 批量新增 - 自动计算日志路径
-      const services = form.items.map(item => {
-        const serviceItem = { ...item, projectId: form.projectId }
-        // 如果日志路径为空，自动计算
-        if (!serviceItem.logPath) {
-          serviceItem.logPath = getComputedLogPath(item)
-        }
-        return serviceItem
-      })
+      // 批量新增
       await request.post('/service/batch', services)
       ElMessage.success('批量创建成功')
     }
     dialogVisible.value = false
     fetchData()
-  } catch (e) {}
+  } catch (e) {
+    console.error('保存失败:', e)
+  }
 }
 
 const handleDelete = (row) => {
-  ElMessageBox.confirm('确认删除该服务?', '警告', { type: 'warning' }).then(async () => {
+  ElMessageBox.confirm('确认删除该服务？', '警告', { type: 'warning' }).then(async () => {
     await request.delete(`/service/${row.id}`)
     ElMessage.success('删除成功')
     fetchData()
   })
 }
 
+// 处理启用/禁用
 const handleToggleEnabled = async (row) => {
   try {
     await request.put('/service', row)
@@ -1423,7 +1480,7 @@ const handleBatchDeploy = () => {
         // 清空选择
         selectedServices.value = []
 
-        // 发版中时每5秒刷新一次状态
+        // 发版中时每 5 秒刷新一次状态
         const refreshTimer = setInterval(async () => {
           const hasDeploying = tableData.value.some(item => item.runStatus === 3)
           if (!hasDeploying) {
@@ -1437,7 +1494,7 @@ const handleBatchDeploy = () => {
         ElMessage.error(res.message || '批量发版失败')
       }
     } catch (err) {
-      ElMessage.error('批量发版请求失败: ' + (err.message || '未知错误'))
+      ElMessage.error('批量发版请求失败：' + (err.message || '未知错误'))
     }
   }).catch(() => {})
 }
@@ -1457,7 +1514,7 @@ const handleAction = (row, action) => {
         if (res.success) {
           ElMessage.success(res.message || '正在发版，详细信息去发版记录查看')
 
-          // 发版中时每5秒刷新一次状态
+          // 发版中时每 5 秒刷新一次状态
           const refreshTimer = setInterval(async () => {
             const currentData = tableData.value.find(item => item.id === row.id)
             if (currentData && currentData.runStatus !== 3) {
@@ -1471,7 +1528,7 @@ const handleAction = (row, action) => {
           ElMessage.error(res.message || '发版失败')
         }
       }).catch(err => {
-        ElMessage.error('发版请求失败: ' + (err.message || '未知错误'))
+        ElMessage.error('发版请求失败：' + (err.message || '未知错误'))
       })
     }).catch(() => {})
     return
@@ -1533,7 +1590,7 @@ const handleAction = (row, action) => {
       }
       execSocket.value = socket
     } catch (e) {
-      resultContent.value += '\n无法建立连接: ' + e.message
+      resultContent.value += '\n无法建立连接：' + e.message
       resultStatus.value = 'error'
     }
   }).catch(() => {})
@@ -1573,7 +1630,7 @@ const handleLog = (row) => {
     socket.onclose = () => logContent.value += '\n>>> 连接已断开'
     logSocket.value = socket
   } catch (e) {
-    logContent.value = '无法建立连接: ' + e.message
+    logContent.value = '无法建立连接：' + e.message
   }
 }
 
@@ -1585,7 +1642,7 @@ watch(logVisible, (val) => {
 })
 
 const handleRollback = (row) => {
-  ElMessageBox.confirm('确认执行版本回退?', '警告', { type: 'warning' }).then(() => {
+  ElMessageBox.confirm('确认执行版本回退？', '警告', { type: 'warning' }).then(() => {
     resultContent.value = `正在连接 WebSocket 执行版本回退...\n`
     resultStatus.value = 'success'
     resultVisible.value = true
@@ -1632,6 +1689,9 @@ const handleMoreCommand = (command, row) => {
       break
     case 'edit':
       handleEdit(row)
+      break
+    case 'toggle_enabled':
+      handleToggleEnabled(row)
       break
     case 'delete':
       handleDelete(row)
@@ -1700,7 +1760,7 @@ const handleRollbackToVersion = (version) => {
         ElMessage.error(res.message || '回退失败')
       }
     }).catch(err => {
-      ElMessage.error('回退请求失败: ' + (err.message || '未知错误'))
+      ElMessage.error('回退请求失败：' + (err.message || '未知错误'))
     })
   }).catch(() => {})
 }
@@ -1932,9 +1992,9 @@ const generateStartScript = (item) => {
   return `#!/bin/bash
 # Spring Boot 应用启动脚本
 # 自动生成于 Opster 平台
-# 服务端口: ${port}
-# 生成时间: ${new Date().toLocaleString('zh-CN')}
-# 使用方式: sh start.sh (无需传递参数)
+# 服务端口：${port}
+# 生成时间：${new Date().toLocaleString('zh-CN')}
+# 使用方式：sh start.sh (无需传递参数)
 
 # 配置项
 JAR_NAME="*.jar"
@@ -1950,20 +2010,20 @@ YELLOW='\\033[1;33m'
 NC='\\033[0m' # No Color
 
 # 日志函数
-log_info() {
+log_info() => {
     echo -e "\${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] INFO: \$1\${NC}"
 }
 
-log_error() {
+log_error() => {
     echo -e "\${RED}[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: \$1\${NC}"
 }
 
-log_warn() {
+log_warn() => {
     echo -e "\${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] WARN: \$1\${NC}"
 }
 
-# 检查Java是否可用
-check_java() {
+# 检查 Java 是否可用
+check_java() => {
     # 优先使用 JAVA_HOME 中的 java
     if [ -n "\$JAVA_HOME" ] && [ -x "\$JAVA_HOME/bin/java" ]; then
         export PATH="\$JAVA_HOME/bin:\$PATH"
@@ -2008,15 +2068,15 @@ check_java() {
     exit 1
 }
 
-# 获取应用PID
-get_pid() {
+# 获取应用 PID
+get_pid() => {
     if [ -f "\$PID_FILE" ]; then
         cat "\$PID_FILE"
     fi
 }
 
 # 检查端口是否被占用
-check_port() {
+check_port() => {
     local port=\$1
 
     # 检查端口是否被监听
@@ -2042,7 +2102,7 @@ check_port() {
         pid=\$(lsof -ti:\$port 2>/dev/null)
         if [ -n "\$pid" ]; then
             log_error "端口 \$port 仍被占用，优雅停止失败"
-            log_error "请手动执行: lsof -ti:\$port | xargs kill"
+            log_error "请手动执行：lsof -ti:\$port | xargs kill"
             exit 1
         fi
 
@@ -2051,9 +2111,9 @@ check_port() {
 }
 
 # 优雅停止进程
-graceful_stop() {
+graceful_stop() => {
     local pid=\$1
-    local max_wait=30  # 最大等待30秒
+    local max_wait=30  # 最大等待 30 秒
     local waited=0
 
     log_info "发送 SIGTERM 信号到进程 \$pid ..."
@@ -2070,16 +2130,16 @@ graceful_stop() {
     # 检查进程是否已退出
     if ps -p "\$pid" > /dev/null 2>&1; then
         log_warn "进程 \$pid 在 \$max_wait 秒内未响应 SIGTERM"
-        log_warn "如需强制停止，请执行: kill -9 \$pid"
+        log_warn "如需强制停止，请执行：kill -9 \$pid"
         return 1
     else
-        log_info "进程 \$pid 已优雅停止 (耗时: \${waited}秒)"
+        log_info "进程 \$pid 已优雅停止 (耗时：\${waited}秒)"
         return 0
     fi
 }
 
 # 检查应用是否已运行
-check_running() {
+check_running() => {
     local pid=\$(get_pid)
     if [ -n "\$pid" ]; then
         if ps -p "\$pid" > /dev/null 2>&1; then
@@ -2107,12 +2167,12 @@ check_running() {
 }
 
 # 启动应用
-start() {
+start() => {
     log_info "=========================================="
     log_info "Spring Boot 应用启动"
     log_info "=========================================="
 
-    # 检查Java
+    # 检查 Java
     check_java
 
     # 检查端口是否被占用
@@ -2125,16 +2185,16 @@ start() {
     # 创建日志目录
     mkdir -p "\$LOG_DIR"
 
-    # 查找jar文件
+    # 查找 jar 文件
     jar_file=\$(ls -t \$JAR_NAME 2>/dev/null | head -1)
     if [ -z "\$jar_file" ]; then
-        log_error "未找到jar文件: \$JAR_NAME"
+        log_error "未找到 jar 文件：\$JAR_NAME"
         exit 1
     fi
 
-    log_info "使用jar文件: \$jar_file"
-    log_info "服务端口: \$PORT"
-    log_info "日志文件: \$LOG_DIR/app.log"
+    log_info "使用 jar 文件：\$jar_file"
+    log_info "服务端口：\$PORT"
+    log_info "日志文件：\$LOG_DIR/app.log"
 
     # 启动应用
     nohup java \$JAVA_OPTS -jar "\$jar_file" \\
@@ -2147,12 +2207,12 @@ start() {
     # 验证启动成功
     if ps -p \$(get_pid) > /dev/null 2>&1; then
         log_info "应用启动成功 (PID: \$(get_pid))"
-        log_info "应用日志: \$LOG_DIR/app.log"
+        log_info "应用日志：\$LOG_DIR/app.log"
         log_info "=========================================="
         log_info "启动完成"
         log_info "=========================================="
     else
-        log_error "应用启动失败，请检查日志: \$LOG_DIR/app.log"
+        log_error "应用启动失败，请检查日志：\$LOG_DIR/app.log"
         exit 1
     fi
 }
@@ -2192,7 +2252,7 @@ const handleUploadToServer = async () => {
     return
   }
 
-  // 检查是否有服务ID（新增模式下的服务还没有保存）
+  // 检查是否有服务 ID（新增模式下的服务还没有保存）
   if (!currentEditingItem.value.id) {
     ElMessageBox.alert('请先保存服务后再上传脚本', '提示', { type: 'warning' })
     return
@@ -2239,11 +2299,11 @@ const handleUploadToServer = async () => {
       // 更新本地状态
       currentEditingItem.value.scriptUploaded = 1
     } else {
-      ElMessage.error('上传失败: ' + (uploadRes.message || '未知错误'))
+      ElMessage.error('上传失败：' + (uploadRes.message || '未知错误'))
     }
   } catch (e) {
     if (e.message !== 'cancel') {
-      ElMessage.error('操作失败: ' + (e.message || '未知错误'))
+      ElMessage.error('操作失败：' + (e.message || '未知错误'))
     }
   } finally {
     // 结束 loading
@@ -2327,7 +2387,7 @@ onMounted(() => {
   max-height: 450px;
 }
 /* 日志中不同步骤的颜色标识 */
-.log-content:deep('>>>') {
+.log-content :deep(>>>) {
   color: #409eff;
   font-weight: bold;
 }
