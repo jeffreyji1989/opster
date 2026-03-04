@@ -40,6 +40,11 @@ public class DeploymentRecordServiceImpl implements DeploymentRecordService {
     }
 
     @Override
+    public List<DeploymentRecord> queryByConditions(String projectName, String serviceName, String serverIp, DeploymentStatus status) {
+        return deploymentRecordRepository.findByConditions(projectName, serviceName, serverIp, status);
+    }
+
+    @Override
     public List<DeploymentRecord> getAll() {
         return deploymentRecordRepository.findAllByOrderByCreateTimeDesc();
     }
@@ -100,5 +105,10 @@ public class DeploymentRecordServiceImpl implements DeploymentRecordService {
         record.setVersionDescription(description);
         record.setVersionTag(tag);
         deploymentRecordRepository.save(record);
+    }
+
+    @Override
+    public void deleteByIds(List<Integer> ids) {
+        deploymentRecordRepository.deleteAllById(ids);
     }
 }

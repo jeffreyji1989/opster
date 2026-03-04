@@ -12,8 +12,14 @@
           <el-form-item label="项目名称">
             <el-input v-model="searchForm.projectName" placeholder="请输入项目名称" clearable></el-input>
           </el-form-item>
+          <el-form-item label="服务名称">
+            <el-input v-model="searchForm.serviceName" placeholder="请输入服务名称" clearable></el-input>
+          </el-form-item>
+          <el-form-item label="服务器IP">
+            <el-input v-model="searchForm.serverIp" placeholder="请输入服务器IP" clearable></el-input>
+          </el-form-item>
           <el-form-item label="发版状态">
-            <el-select v-model="searchForm.status" placeholder="请选择发版状态" clearable>
+            <el-select v-model="searchForm.status" placeholder="请选择发版状态" clearable style="width: 160px">
               <el-option label="进行中" :value="0"></el-option>
               <el-option label="完成" :value="1"></el-option>
               <el-option label="失败" :value="2"></el-option>
@@ -25,16 +31,31 @@
           </el-form-item>
         </el-form>
 
+        <!-- 操作栏 -->
+        <div class="action-bar">
+          <el-button type="danger" :disabled="selectedIds.length === 0" @click="handleBatchDelete">
+            批量删除 ({{ selectedIds.length }})
+          </el-button>
+        </div>
+
         <!-- 数据表格 -->
-        <el-table :data="deploymentRecords" style="width: 100%" border>
+        <el-table
+          :data="deploymentRecords"
+          style="width: 100%"
+          border
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="55"></el-table-column>
           <el-table-column prop="id" label="记录ID" width="80"></el-table-column>
           <el-table-column prop="projectName" label="项目名称" min-width="120"></el-table-column>
           <el-table-column prop="serverIp" label="服务器IP" min-width="120"></el-table-column>
           <el-table-column prop="serverAlias" label="服务器别名" min-width="100"></el-table-column>
           <el-table-column prop="serviceName" label="服务名称" min-width="100"></el-table-column>
-          <el-table-column prop="status" label="发版状态" width="100">
+          <el-table-column prop="status" label="发版状态" width="120">
             <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)">{{ getStatusName(scope.row.status) }}</el-tag>
+              <el-tag :type="getStatusType(scope.row.status)" size="large" class="status-tag">
+                {{ getStatusName(scope.row.status) }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column prop="createTime" label="创建时间" min-width="160"></el-table-column>
@@ -62,17 +83,22 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '../api/request'
 
 // 搜索表单
 const searchForm = ref({
   projectName: '',
+  serviceName: '',
+  serverIp: '',
   status: ''
 })
 
 // 发版记录列表
 const deploymentRecords = ref([])
+
+// 选中的记录ID
+const selectedIds = ref([])
 
 // 日志弹窗
 const logDialogVisible = ref(false)
@@ -106,9 +132,44 @@ const handleSearch = () => {
 const resetForm = () => {
   searchForm.value = {
     projectName: '',
+    serviceName: '',
+    serverIp: '',
     status: ''
   }
   fetchDeploymentRecords()
+}
+
+// 表格选择变化
+const handleSelectionChange = (selection) => {
+  selectedIds.value = selection.map(item => item.id)
+}
+
+// 批量删除
+const handleBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.value.length} 条记录吗？`,
+      '批量删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await request.delete('/deployment-records/batch', {
+      data: selectedIds.value
+    })
+
+    ElMessage.success('批量删除成功')
+    selectedIds.value = []
+    fetchDeploymentRecords()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('批量删除失败')
+      console.error('批量删除失败:', error)
+    }
+  }
 }
 
 // 查看日志
@@ -118,14 +179,14 @@ const viewLogs = (id) => {
 
   // 使用环境变量配置的 WebSocket 地址
   const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/log/deployment/${id}`
-  
+
   try {
     const socket = new WebSocket(wsUrl)
-    
+
     socket.onopen = () => {
       logContent.value = '>>> 连接成功，正在获取日志...\n'
     }
-    
+
     socket.onmessage = (event) => {
       logContent.value += event.data + '\n'
       // 自动滚动到底部
@@ -134,19 +195,19 @@ const viewLogs = (id) => {
         if (el) el.scrollTop = el.scrollHeight
       }, 0)
     }
-    
+
     socket.onerror = (error) => {
       console.error('WebSocket Error:', error)
       logContent.value += '\n>>> 连接发生错误'
     }
-    
+
     socket.onclose = () => {
       logContent.value += '\n>>> 连接已断开'
     }
-    
+
     // 存储 socket 实例，以便在对话框关闭时关闭连接
     logSocket.value = socket
-    
+
   } catch (e) {
     console.error(e)
     logContent.value = '无法建立连接: ' + e.message
@@ -202,6 +263,18 @@ const getStatusName = (status) => {
 
 .search-form {
   margin-bottom: 20px;
+}
+
+.action-bar {
+  margin-bottom: 15px;
+}
+
+/* 发版状态标签样式 */
+.status-tag {
+  font-size: 14px;
+  padding: 8px 16px;
+  height: auto;
+  font-weight: 500;
 }
 
 .log-content {

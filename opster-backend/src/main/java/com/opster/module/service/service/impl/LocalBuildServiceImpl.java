@@ -12,6 +12,7 @@ import com.opster.module.service.repository.AppServiceRepository;
 import com.opster.module.service.service.AppServiceService;
 import com.opster.module.service.service.LocalBuildService;
 import com.opster.module.service.service.NodeVersionService;
+import com.opster.module.service.service.GitOperationLockService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,9 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     @Autowired
     private ProjectRepository projectRepository;
+
+    @Autowired
+    private GitOperationLockService gitOperationLockService;
 
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
@@ -532,6 +536,7 @@ public class LocalBuildServiceImpl implements LocalBuildService {
 
     /**
      * 执行 Git 操作（clone 或 pull）
+     * 添加 Git URL 级别的锁，确保相同 Git URL 的操作串行执行，避免锁文件冲突
      *
      * @param sourceDir 源码目录
      * @param gitUrl Git 仓库地址
@@ -545,7 +550,18 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     private boolean performGitOperation(Path sourceDir, String gitUrl, String gitBranch,
                                        WebSocketSession wsSession, LocalBuildLogger logger,
                                        String username, String password) {
+        // 获取 Git 操作锁，确保相同 Git URL 的操作串行执行
+        String gitLockId = null;
         try {
+            // 获取锁（传入 logger 以显示排队状态）
+            gitLockId = gitOperationLockService.acquireLock(gitUrl, logger);
+            if (gitLockId == null) {
+                logger.error("获取 Git 操作锁超时，可能存在长时间运行的操作");
+                return false;
+            }
+
+            logger.info(">>> 开始执行 Git 操作...");
+
             // 如果提供了用户名和密码，构建带认证的 Git URL
             String authenticatedUrl = buildAuthenticatedGitUrl(gitUrl, username, password);
 
@@ -597,6 +613,11 @@ public class LocalBuildServiceImpl implements LocalBuildService {
         } catch (Exception e) {
             logger.error("Git 操作失败", e);
             return false;
+        } finally {
+            // 释放 Git 操作锁（传入 logger 以记录释放状态）
+            if (gitLockId != null) {
+                gitOperationLockService.releaseLock(gitLockId, logger);
+            }
         }
     }
 
@@ -973,20 +994,115 @@ public class LocalBuildServiceImpl implements LocalBuildService {
     }
 
     /**
-     * 查找 npm 打包产物目录（dist 或 build）
+     * 查找 npm 打包产物目录
+     * 优先级：
+     * 1. dist 目录（Vue、Vite 等常用）
+     * 2. build 目录（Create React App 等使用）
+     * 3. 最近修改的目录（兜底策略，处理自定义输出目录）
+     *
+     * @param projectRoot 项目根目录
+     * @return 打包产物目录，如果未找到则返回 null
      */
     private Path findNpmDistDir(Path projectRoot) {
+        // 1. 优先查找 dist 目录（最常见）
         Path distDir = projectRoot.resolve("dist");
-        if (Files.exists(distDir)) {
-            return distDir;
+        if (Files.exists(distDir) && Files.isDirectory(distDir)) {
+            // 验证目录不为空
+            if (isDirectoryNotEmpty(distDir)) {
+                log.info("找到 dist 目录: {}", distDir);
+                return distDir;
+            }
         }
 
+        // 2. 查找 build 目录（Create React App 使用）
         Path buildDir = projectRoot.resolve("build");
-        if (Files.exists(buildDir)) {
-            return buildDir;
+        if (Files.exists(buildDir) && Files.isDirectory(buildDir)) {
+            if (isDirectoryNotEmpty(buildDir)) {
+                log.info("找到 build 目录: {}", buildDir);
+                return buildDir;
+            }
+        }
+
+        // 3. 兜底策略：查找最近修改的非空目录
+        // 排除常见的源码目录和配置目录
+        log.info("未找到 dist 或 build 目录，尝试查找最近修改的目录...");
+        Path lastModifiedDir = findLastModifiedNonSourceDir(projectRoot);
+        if (lastModifiedDir != null) {
+            log.info("找到最近修改的目录: {}", lastModifiedDir);
+            return lastModifiedDir;
         }
 
         return null;
+    }
+
+    /**
+     * 检查目录是否不为空
+     */
+    private boolean isDirectoryNotEmpty(Path dir) {
+        try (Stream<Path> paths = Files.list(dir)) {
+            return paths.findFirst().isPresent();
+        } catch (Exception e) {
+            log.warn("检查目录是否为空时出错: {}", dir, e);
+            return false;
+        }
+    }
+
+    /**
+     * 查找最近修改的非源码目录
+     * 排除：node_modules, src, public, assets, .git, tests 等
+     */
+    private Path findLastModifiedNonSourceDir(Path projectRoot) {
+        // 需要排除的目录名（源码目录、配置目录、依赖目录等）
+        java.util.Set<String> excludeDirs = java.util.Set.of(
+            "node_modules", "src", "public", "assets", "static",
+            ".git", ".github", ".vscode", ".idea",
+            "tests", "test", "__tests__", "__mocks__",
+            "config", "configs", "scripts",
+            "docs", "doc", "examples", "example"
+        );
+
+        try (Stream<Path> paths = Files.list(projectRoot)) {
+            return paths
+                .filter(Files::isDirectory)
+                .filter(dir -> !excludeDirs.contains(dir.getFileName().toString()))
+                .filter(dir -> !dir.getFileName().toString().startsWith(".")) // 排除隐藏目录
+                .filter(this::isDirectoryNotEmpty)
+                .max((p1, p2) -> {
+                    try {
+                        long time1 = getDirectoryLastModifiedTime(p1);
+                        long time2 = getDirectoryLastModifiedTime(p2);
+                        return Long.compare(time1, time2);
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .orElse(null);
+        } catch (Exception e) {
+            log.warn("查找最近修改的目录时出错: {}", projectRoot, e);
+            return null;
+        }
+    }
+
+    /**
+     * 获取目录的最后修改时间（递归查找目录内文件的最新修改时间）
+     */
+    private long getDirectoryLastModifiedTime(Path dir) {
+        try (Stream<Path> paths = Files.walk(dir, 2)) {
+            return paths
+                .filter(Files::isRegularFile)
+                .mapToLong(p -> {
+                    try {
+                        return Files.getLastModifiedTime(p).toMillis();
+                    } catch (Exception e) {
+                        return 0;
+                    }
+                })
+                .max()
+                .orElse(0);
+        } catch (Exception e) {
+            log.warn("获取目录修改时间时出错: {}", dir, e);
+            return 0;
+        }
     }
 
     /**

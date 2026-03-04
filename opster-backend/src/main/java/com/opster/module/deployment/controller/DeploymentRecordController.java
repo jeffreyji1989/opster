@@ -22,16 +22,20 @@ public class DeploymentRecordController {
     /**
      * 查询部署记录
      * @param projectName 项目名称（模糊搜索）
+     * @param serviceName 服务名称（模糊搜索）
+     * @param serverIp 服务器IP（模糊搜索）
      * @param status 部署状态
      * @return 部署记录列表
      */
     @GetMapping
     public List<DeploymentRecord> query(
             @RequestParam(value = "projectName", required = false) String projectName,
+            @RequestParam(value = "serviceName", required = false) String serviceName,
+            @RequestParam(value = "serverIp", required = false) String serverIp,
             @RequestParam(value = "status", required = false) Integer status
     ) {
         DeploymentStatus deploymentStatus = status != null ? DeploymentStatus.getByCode(status) : null;
-        return deploymentRecordService.query(projectName, deploymentStatus);
+        return deploymentRecordService.queryByConditions(projectName, serviceName, serverIp, deploymentStatus);
     }
 
     /**
@@ -89,5 +93,14 @@ public class DeploymentRecordController {
                 request.get("description"),
                 request.get("tag")
         );
+    }
+
+    /**
+     * 批量删除部署记录
+     * @param ids 部署记录ID列表
+     */
+    @DeleteMapping("/batch")
+    public void deleteByIds(@RequestBody List<Integer> ids) {
+        deploymentRecordService.deleteByIds(ids);
     }
 }

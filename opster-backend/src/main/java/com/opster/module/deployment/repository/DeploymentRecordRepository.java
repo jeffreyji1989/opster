@@ -48,4 +48,25 @@ public interface DeploymentRecordRepository extends JpaRepository<DeploymentReco
      * @return 部署记录列表
      */
     List<DeploymentRecord> findByServiceIdOrderByCreateTimeDesc(Integer serviceId);
+
+    /**
+     * 根据条件查询部署记录，按创建时间倒序排列
+     * @param projectName 项目名称（模糊搜索）
+     * @param serviceName 服务名称（模糊搜索）
+     * @param serverIp 服务器IP（模糊搜索）
+     * @param status 部署状态
+     * @return 部署记录列表
+     */
+    @Query("SELECT dr FROM DeploymentRecord dr WHERE " +
+            "(:projectName IS NULL OR dr.projectName LIKE %:projectName%) AND " +
+            "(:serviceName IS NULL OR dr.serviceName LIKE %:serviceName%) AND " +
+            "(:serverIp IS NULL OR dr.serverIp LIKE %:serverIp%) AND " +
+            "(:status IS NULL OR dr.status = :status) " +
+            "ORDER BY dr.createTime DESC")
+    List<DeploymentRecord> findByConditions(
+            @Param("projectName") String projectName,
+            @Param("serviceName") String serviceName,
+            @Param("serverIp") String serverIp,
+            @Param("status") DeploymentStatus status
+    );
 }

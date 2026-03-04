@@ -39,9 +39,12 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="上次耗时" width="100" align="right">
+      <el-table-column label="上次耗时" width="200" align="right">
         <template #default="{ row }">
-          {{ row.lastResponseTime !== null ? (row.lastResponseTime + ' ms') : '-' }}
+          <span v-if="row.lastResponseTime !== null">
+            {{ row.lastResponseTime }} ms ({{ row.lastTimeStr }})
+          </span>
+          <span v-else class="text-muted">-</span>
         </template>
       </el-table-column>
 
@@ -108,7 +111,11 @@
     <!-- 历史记录对话框 -->
     <el-dialog v-model="historyDialogVisible" :title="`监控历史记录 - ${currentService?.serviceName}`" width="800px">
       <el-table :data="historyList" stripe border max-height="400">
-        <el-table-column prop="recordTimeStr" label="检测时间" width="160" />
+        <el-table-column label="检测时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.recordTime) }}
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small">
@@ -282,6 +289,21 @@ const handleViewHistory = async (serviceId) => {
     console.error(e)
     ElMessage.error('加载历史记录失败')
   }
+}
+
+// 格式化日期时间
+const formatDateTime = (dateTime) => {
+  if (!dateTime) return '-'
+  // 处理数组格式 [2026, 3, 4, 16, 23, 22]
+  if (Array.isArray(dateTime)) {
+    const [year, month, day, hour = 0, minute = 0, second = 0] = dateTime
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`
+  }
+  // 处理字符串格式
+  if (typeof dateTime === 'string') {
+    return dateTime.replace('T', ' ')
+  }
+  return dateTime
 }
 
 const getStatusType = (status) => {

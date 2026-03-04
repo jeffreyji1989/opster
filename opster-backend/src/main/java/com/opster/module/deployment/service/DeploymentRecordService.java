@@ -40,6 +40,16 @@ public interface DeploymentRecordService {
     List<DeploymentRecord> query(String projectName, DeploymentStatus status);
 
     /**
+     * 根据条件查询部署记录
+     * @param projectName 项目名称（模糊搜索）
+     * @param serviceName 服务名称（模糊搜索）
+     * @param serverIp 服务器IP（模糊搜索）
+     * @param status 部署状态
+     * @return 部署记录列表
+     */
+    List<DeploymentRecord> queryByConditions(String projectName, String serviceName, String serverIp, DeploymentStatus status);
+
+    /**
      * 获取所有部署记录（按创建时间倒序）
      * @return 部署记录列表
      */
@@ -80,4 +90,10 @@ public interface DeploymentRecordService {
      * @param tag 版本标签
      */
     void updateVersionInfo(Integer id, String description, String tag);
+
+    /**
+     * 批量删除部署记录
+     * @param ids 部署记录ID列表
+     */
+    void deleteByIds(List<Integer> ids);
 }
