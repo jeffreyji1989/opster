@@ -99,3 +99,8 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 *.dbbak
+
+# Spring Boot Config
+application-*.yml
+application-*.yaml
+application-*.properties
