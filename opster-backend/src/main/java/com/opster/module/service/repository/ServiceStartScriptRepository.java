@@ -19,9 +19,10 @@ public interface ServiceStartScriptRepository extends JpaRepository<ServiceStart
     List<ServiceStartScript> findByDelFlagOrderByIsDefaultDescIdDesc(Integer delFlag);
 
     /**
-     * 查询默认脚本
+     * 查询默认脚本（返回第一条）
      */
-    ServiceStartScript findByIsDefaultAndDelFlag(Integer isDefault, Integer delFlag);
+    @Query("SELECT s FROM ServiceStartScript s WHERE s.isDefault = ?1 AND s.delFlag = ?2 ORDER BY s.id DESC")
+    ServiceStartScript findFirstByIsDefaultAndDelFlag(Integer isDefault, Integer delFlag);
 
     /**
      * 根据名称查询脚本

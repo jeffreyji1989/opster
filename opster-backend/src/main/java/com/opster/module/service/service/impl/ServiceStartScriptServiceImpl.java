@@ -81,7 +81,7 @@ public class ServiceStartScriptServiceImpl implements ServiceStartScriptService 
 
         // 如果是默认脚本，取消其他默认设置
         if (script.getIsDefault() == 1) {
-            ServiceStartScript oldDefault = scriptRepository.findByIsDefaultAndDelFlag(1, 0);
+            ServiceStartScript oldDefault = scriptRepository.findFirstByIsDefaultAndDelFlag(1, 0);
             if (oldDefault != null && !oldDefault.getId().equals(script.getId())) {
                 oldDefault.setIsDefault(0);
                 scriptRepository.save(oldDefault);
@@ -131,7 +131,7 @@ public class ServiceStartScriptServiceImpl implements ServiceStartScriptService 
         // 如果是默认脚本，取消其他默认设置
         if (dto.getIsDefault() != null && dto.getIsDefault() == 1) {
             script.setIsDefault(1);
-            ServiceStartScript oldDefault = scriptRepository.findByIsDefaultAndDelFlag(1, 0);
+            ServiceStartScript oldDefault = scriptRepository.findFirstByIsDefaultAndDelFlag(1, 0);
             if (oldDefault != null && !oldDefault.getId().equals(script.getId())) {
                 oldDefault.setIsDefault(0);
                 scriptRepository.save(oldDefault);
@@ -218,7 +218,7 @@ public class ServiceStartScriptServiceImpl implements ServiceStartScriptService 
 
     @Override
     public StartScriptDTO getDefaultScript() {
-        ServiceStartScript script = scriptRepository.findByIsDefaultAndDelFlag(1, 0);
+        ServiceStartScript script = scriptRepository.findFirstByIsDefaultAndDelFlag(1, 0);
         if (script == null) {
             return null;
         }
