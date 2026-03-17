@@ -7,7 +7,7 @@ server:
 
 spring:
   profiles:
-    active: gs
+    active: dev
   application:
     name: opster-backend
   datasource:

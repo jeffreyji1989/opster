@@ -1,0 +1,407 @@
+<testsuites id="" name="" tests="51" failures="0" skipped="0" errors="0" time="305.548465">
+<testsuite name="deployment-record.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="chromium" tests="8" failures="0" skipped="0" time="39.339" errors="0">
+<testcase name="发版记录管理 › 页面应该正确加载" classname="deployment-record.spec.ts" time="6.461">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按项目名称搜索" classname="deployment-record.spec.ts" time="4.462">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务名称搜索" classname="deployment-record.spec.ts" time="4.489">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务器 IP 搜索" classname="deployment-record.spec.ts" time="4.104">
+<system-out>
+<![CDATA[服务器 IP 搜索框不可见，跳过填充
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按状态搜索" classname="deployment-record.spec.ts" time="5.4">
+</testcase>
+<testcase name="发版记录管理 › 重置搜索表单" classname="deployment-record.spec.ts" time="5.902">
+</testcase>
+<testcase name="发版记录管理 › 查看日志功能" classname="deployment-record.spec.ts" time="4.446">
+<system-out>
+<![CDATA[日志内容: >>> 连接成功，正在获取日志...
+=== 部署日志 ===
+项目: 图纸系统
+服务器: 172.16.113.220 (172.16.113.220)
+服务: Service-2
+状态: 失败
+日志路径: D:\deploy/p401/project401-backend/logs/20260314202911367_service2.log
+=== 日志内容 ===
+
+[2026-03-14 20:29:11] >>> 获取部署锁...
+[2026-03-14 20:29:11] >>> 服务状态已更新为:发版中
+[2026-03-14 20:29:11] >>> 开始本地打包...
+[2026-03-14 20:29:11] === 开始 Maven 项目打包 ===
+[2026-03-14 20:29:11] 项目编码：p401
+[2026-03-14 20:29:11] 服务别名：project401-backend
+[2026-03-14 20:29:11] Git 地址：http://172.16.113.202:3000/Product-4/project401-backend.git
+[2026-03-14 20:29:11] Git 分支：master_ptbai_djl
+[2026-03-14 20:29:11] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:29:11] JDK 版本：jdk8
+[2026-03-14 20:29:11] 源码目录：D:\deploy/p401/project401-backend/source
+[2026-03-14 20:29:11] 编译路径为空，使用源码目录：D:\deploy/p401/project401-backend/source
+[2026-03-14 20:29:11] >>> 开始 Git 操作...
+[2026-03-14 20:29:11] >>> Git 操作目录（源码目录）: D:\deploy/p401/project401-backend/source
+[2026-03-14 20:29:11] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git
+[2026-03-14 20:29:11] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git
+[2026-03-14 20:29:11] >>> 开始执行 Git 操作...
+[2026-03-14 20:29:11] 检测到 Git 仓库已存在，执行 git pull...
+[2026-03-14 20:29:11] 更新远程仓库 URL 以包含认证信息
+[2026-03-14 20:29:11] HEAD 现在位于 e00ed94 1. 发送管理中批量发送报错修改
+[2026-03-14 20:29:11] 已经位于 'master_ptbai_djl'
+[2026-03-14 20:29:11] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。
+[2026-03-14 20:29:12] 来自 http://172.16.113.202:3000/Product-4/project401-backend
+[2026-03-14 20:29:12]  * branch            master_ptbai_djl -> FETCH_HEAD
+[2026-03-14 20:29:12] 已经是最新的。
+[2026-03-14 20:29:12] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git
+[2026-03-14 20:29:12] 项目根目录（编译目录）: D:\deploy/p401/project401-backend/source
+[2026-03-14 20:29:12] >>> 开始 Maven 打包...
+[2026-03-14 20:29:12] 使用 JDK 8: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:29:12] JAVA_HOME: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:29:12] M2_HOME: C:\soft\apache-maven-3.9.12
+[2026-03-14 20:29:12] PATH: PATH=C:\soft\apache-maven-3.9.12/bin:C:\soft\Java\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+[2026-03-14 20:29:12] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:29:12] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:29:12] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e
+[2026-03-14 20:29:12] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:29:12] The JAVA_HOME environment variable is not defined correctly,
+[2026-03-14 20:29:12] this environment variable is needed to run this program.
+[2026-03-14 20:29:12] >>> Command failed with exit code: 1
+[2026-03-14 20:29:12] Maven 打包失败
+[2026-03-14 20:29:12] Maven 打包失败 - Maven build failed
+[2026-03-14 20:29:12] >>> 部署失败: Maven build failed
+[2026-03-14 20:29:12] >>> 服务状态已更新为:发版失败
+[2026-03-14 20:29:12] >>> Done.
+
+>>> 日志读取完成
+
+>>> 连接已断开
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 批量删除功能 - 选择记录" classname="deployment-record.spec.ts" time="4.075">
+</testcase>
+</testsuite>
+<testsuite name="service-deploy.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="chromium" tests="9" failures="0" skipped="0" time="51.037" errors="0">
+<testcase name="服务发版功能 › 服务列表页面应该正确加载" classname="service-deploy.spec.ts" time="3.823">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按运行状态搜索" classname="service-deploy.spec.ts" time="5.398">
+<system-out>
+<![CDATA[服务 0 状态：正常
+服务 1 状态：正常
+服务 2 状态：正常
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按环境搜索" classname="service-deploy.spec.ts" time="5.314">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按启用状态搜索" classname="service-deploy.spec.ts" time="5.394">
+</testcase>
+<testcase name="服务发版功能 › 单服务发版流程" classname="service-deploy.spec.ts" time="6.83">
+<system-out>
+<![CDATA[发版前状态: 正常
+发版消息: 正在发版，详细信息去发版记录查看
+发版后状态: 发版中
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 批量发版流程" classname="service-deploy.spec.ts" time="8.805">
+<system-out>
+<![CDATA[批量发版服务 0 状态：发版失败
+批量发版服务 1 状态：发版失败
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 查看发版记录" classname="service-deploy.spec.ts" time="5.962">
+<system-out>
+<![CDATA[发版记录数量: [33m98[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 版本回退功能" classname="service-deploy.spec.ts" time="5.629">
+<system-out>
+<![CDATA[版本历史数量: [33m98[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务运行状态显示" classname="service-deploy.spec.ts" time="3.882">
+<system-out>
+<![CDATA[服务 0 状态：正常
+服务 1 状态：正常
+服务 2 状态：正常
+服务 3 状态：正常
+服务 4 状态：正常
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="deployment-record.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="firefox" tests="8" failures="0" skipped="0" time="44.658" errors="0">
+<testcase name="发版记录管理 › 页面应该正确加载" classname="deployment-record.spec.ts" time="8.245">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按项目名称搜索" classname="deployment-record.spec.ts" time="5.107">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务名称搜索" classname="deployment-record.spec.ts" time="5.106">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务器 IP 搜索" classname="deployment-record.spec.ts" time="4.891">
+<system-out>
+<![CDATA[服务器 IP 搜索框不可见，跳过填充
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按状态搜索" classname="deployment-record.spec.ts" time="5.393">
+</testcase>
+<testcase name="发版记录管理 › 重置搜索表单" classname="deployment-record.spec.ts" time="6.421">
+</testcase>
+<testcase name="发版记录管理 › 查看日志功能" classname="deployment-record.spec.ts" time="4.863">
+<system-out>
+<![CDATA[日志内容: >>> 连接成功，正在获取日志...
+=== 部署日志 ===
+项目: 图纸系统
+服务器: 172.16.113.220 (172.16.113.220)
+服务: Service-1
+状态: 失败
+日志路径: D:\deploy/p401/eip-backend/logs/20260314203147530_service1.log
+=== 日志内容 ===
+
+[2026-03-14 20:31:47] >>> 获取部署锁...
+[2026-03-14 20:31:47] >>> 服务状态已更新为:发版中
+[2026-03-14 20:31:47] >>> 开始本地打包...
+[2026-03-14 20:31:47] === 开始 Maven 项目打包 ===
+[2026-03-14 20:31:47] 项目编码：p401
+[2026-03-14 20:31:47] 服务别名：eip-backend
+[2026-03-14 20:31:47] Git 地址：http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:31:47] Git 分支：master_ptbai_djl
+[2026-03-14 20:31:47] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:31:47] JDK 版本：jdk8
+[2026-03-14 20:31:47] 源码目录：D:\deploy/p401/eip-backend/source
+[2026-03-14 20:31:47] 编译路径为空，使用源码目录：D:\deploy/p401/eip-backend/source
+[2026-03-14 20:31:47] >>> 开始 Git 操作...
+[2026-03-14 20:31:47] >>> Git 操作目录（源码目录）: D:\deploy/p401/eip-backend/source
+[2026-03-14 20:31:47] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:31:47] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:31:47] >>> 开始执行 Git 操作...
+[2026-03-14 20:31:47] 检测到 Git 仓库已存在，执行 git pull...
+[2026-03-14 20:31:47] 更新远程仓库 URL 以包含认证信息
+[2026-03-14 20:31:47] HEAD 现在位于 d3dc0ab 优化登录接口，去掉电解铝登录
+[2026-03-14 20:31:47] 已经位于 'master_ptbai_djl'
+[2026-03-14 20:31:47] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。
+[2026-03-14 20:31:48] 来自 http://172.16.113.202:3000/Product-4/eip-backend
+[2026-03-14 20:31:48]  * branch            master_ptbai_djl -> FETCH_HEAD
+[2026-03-14 20:31:48] 已经是最新的。
+[2026-03-14 20:31:48] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:31:48] 项目根目录（编译目录）: D:\deploy/p401/eip-backend/source
+[2026-03-14 20:31:48] >>> 开始 Maven 打包...
+[2026-03-14 20:31:48] 使用 JDK 8: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:31:48] JAVA_HOME: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:31:48] M2_HOME: C:\soft\apache-maven-3.9.12
+[2026-03-14 20:31:48] PATH: PATH=C:\soft\apache-maven-3.9.12/bin:C:\soft\Java\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+[2026-03-14 20:31:48] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:31:48] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:31:48] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e
+[2026-03-14 20:31:48] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:31:48] The JAVA_HOME environment variable is not defined correctly,
+[2026-03-14 20:31:48] this environment variable is needed to run this program.
+[2026-03-14 20:31:48] >>> Command failed with exit code: 1
+[2026-03-14 20:31:48] Maven 打包失败
+[2026-03-14 20:31:48] Maven 打包失败 - Maven build failed
+[2026-03-14 20:31:48] >>> 部署失败: Maven build failed
+[2026-03-14 20:31:48] >>> 服务状态已更新为:发版失败
+[2026-03-14 20:31:48] >>> Done.
+
+>>> 日志读取完成
+
+>>> 连接已断开
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 批量删除功能 - 选择记录" classname="deployment-record.spec.ts" time="4.632">
+</testcase>
+</testsuite>
+<testsuite name="service-deploy.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="firefox" tests="9" failures="0" skipped="0" time="55.618" errors="0">
+<testcase name="服务发版功能 › 服务列表页面应该正确加载" classname="service-deploy.spec.ts" time="3.936">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按运行状态搜索" classname="service-deploy.spec.ts" time="5.425">
+<system-out>
+<![CDATA[服务 0 状态：正常
+服务 1 状态：正常
+服务 2 状态：正常
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按环境搜索" classname="service-deploy.spec.ts" time="5.341">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按启用状态搜索" classname="service-deploy.spec.ts" time="5.475">
+</testcase>
+<testcase name="服务发版功能 › 单服务发版流程" classname="service-deploy.spec.ts" time="7.529">
+<system-out>
+<![CDATA[发版前状态: 正常
+发版消息: 正在发版，详细信息去发版记录查看
+发版后状态: 发版失败
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 批量发版流程" classname="service-deploy.spec.ts" time="9.553">
+<system-out>
+<![CDATA[批量发版服务 0 状态：发版失败
+批量发版服务 1 状态：正常
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 查看发版记录" classname="service-deploy.spec.ts" time="7.243">
+<system-out>
+<![CDATA[发版记录数量: [33m100[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 版本回退功能" classname="service-deploy.spec.ts" time="7.128">
+<system-out>
+<![CDATA[版本历史数量: [33m100[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务运行状态显示" classname="service-deploy.spec.ts" time="3.988">
+<system-out>
+<![CDATA[服务 0 状态：发版失败
+服务 1 状态：正常
+服务 2 状态：正常
+服务 3 状态：正常
+服务 4 状态：正常
+]]>
+</system-out>
+</testcase>
+</testsuite>
+<testsuite name="deployment-record.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="webkit" tests="8" failures="0" skipped="0" time="47.895" errors="0">
+<testcase name="发版记录管理 › 页面应该正确加载" classname="deployment-record.spec.ts" time="7.408">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按项目名称搜索" classname="deployment-record.spec.ts" time="4.933">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务名称搜索" classname="deployment-record.spec.ts" time="5.004">
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按服务器 IP 搜索" classname="deployment-record.spec.ts" time="4.615">
+<system-out>
+<![CDATA[服务器 IP 搜索框不可见，跳过填充
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 搜索功能 - 按状态搜索" classname="deployment-record.spec.ts" time="5.749">
+</testcase>
+<testcase name="发版记录管理 › 重置搜索表单" classname="deployment-record.spec.ts" time="10.398">
+</testcase>
+<testcase name="发版记录管理 › 查看日志功能" classname="deployment-record.spec.ts" time="5.067">
+<system-out>
+<![CDATA[日志内容: >>> 连接成功，正在获取日志...
+=== 部署日志 ===
+项目: 图纸系统
+服务器: 172.16.113.220 (172.16.113.220)
+服务: Service-1
+状态: 失败
+日志路径: D:\deploy/p401/eip-backend/logs/20260314203328403_service1.log
+=== 日志内容 ===
+
+[2026-03-14 20:33:28] >>> 获取部署锁...
+[2026-03-14 20:33:28] >>> 服务状态已更新为:发版中
+[2026-03-14 20:33:28] >>> 开始本地打包...
+[2026-03-14 20:33:28] === 开始 Maven 项目打包 ===
+[2026-03-14 20:33:28] 项目编码：p401
+[2026-03-14 20:33:28] 服务别名：eip-backend
+[2026-03-14 20:33:28] Git 地址：http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:33:28] Git 分支：master_ptbai_djl
+[2026-03-14 20:33:28] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:33:28] JDK 版本：jdk8
+[2026-03-14 20:33:28] 源码目录：D:\deploy/p401/eip-backend/source
+[2026-03-14 20:33:28] 编译路径为空，使用源码目录：D:\deploy/p401/eip-backend/source
+[2026-03-14 20:33:28] >>> 开始 Git 操作...
+[2026-03-14 20:33:28] >>> Git 操作目录（源码目录）: D:\deploy/p401/eip-backend/source
+[2026-03-14 20:33:28] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:33:28] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:33:28] >>> 开始执行 Git 操作...
+[2026-03-14 20:33:28] 检测到 Git 仓库已存在，执行 git pull...
+[2026-03-14 20:33:28] 更新远程仓库 URL 以包含认证信息
+[2026-03-14 20:33:28] HEAD 现在位于 d3dc0ab 优化登录接口，去掉电解铝登录
+[2026-03-14 20:33:28] 已经位于 'master_ptbai_djl'
+[2026-03-14 20:33:28] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。
+[2026-03-14 20:33:29] 来自 http://172.16.113.202:3000/Product-4/eip-backend
+[2026-03-14 20:33:29]  * branch            master_ptbai_djl -> FETCH_HEAD
+[2026-03-14 20:33:29] 已经是最新的。
+[2026-03-14 20:33:29] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git
+[2026-03-14 20:33:29] 项目根目录（编译目录）: D:\deploy/p401/eip-backend/source
+[2026-03-14 20:33:29] >>> 开始 Maven 打包...
+[2026-03-14 20:33:29] 使用 JDK 8: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:33:29] JAVA_HOME: C:\soft\Java\jdk1.8.0_201
+[2026-03-14 20:33:29] M2_HOME: C:\soft\apache-maven-3.9.12
+[2026-03-14 20:33:29] PATH: PATH=C:\soft\apache-maven-3.9.12/bin:C:\soft\Java\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin
+[2026-03-14 20:33:29] Maven 命令：mvn clean package -DskipTests
+[2026-03-14 20:33:29] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:33:29] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e
+[2026-03-14 20:33:29] 使用 PATH 中的 Maven: C:\soft\apache-maven-3.9.12/bin/mvn
+[2026-03-14 20:33:29] The JAVA_HOME environment variable is not defined correctly,
+[2026-03-14 20:33:29] this environment variable is needed to run this program.
+[2026-03-14 20:33:29] >>> Command failed with exit code: 1
+[2026-03-14 20:33:29] Maven 打包失败
+[2026-03-14 20:33:29] Maven 打包失败 - Maven build failed
+[2026-03-14 20:33:29] >>> 部署失败: Maven build failed
+[2026-03-14 20:33:29] >>> 服务状态已更新为:发版失败
+[2026-03-14 20:33:29] >>> Done.
+
+>>> 日志读取完成
+
+>>> 连接已断开
+]]>
+</system-out>
+</testcase>
+<testcase name="发版记录管理 › 批量删除功能 - 选择记录" classname="deployment-record.spec.ts" time="4.721">
+</testcase>
+</testsuite>
+<testsuite name="service-deploy.spec.ts" timestamp="2026-03-14T12:30:33.895Z" hostname="webkit" tests="9" failures="0" skipped="0" time="55.857" errors="0">
+<testcase name="服务发版功能 › 服务列表页面应该正确加载" classname="service-deploy.spec.ts" time="4.005">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按运行状态搜索" classname="service-deploy.spec.ts" time="5.567">
+<system-out>
+<![CDATA[服务 0 状态：正常
+服务 1 状态：正常
+服务 2 状态：正常
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按环境搜索" classname="service-deploy.spec.ts" time="5.401">
+</testcase>
+<testcase name="服务发版功能 › 服务搜索功能 - 按启用状态搜索" classname="service-deploy.spec.ts" time="5.439">
+</testcase>
+<testcase name="服务发版功能 › 单服务发版流程" classname="service-deploy.spec.ts" time="7.545">
+<system-out>
+<![CDATA[发版前状态: 正常
+发版消息: 正在发版，详细信息去发版记录查看
+发版后状态: 发版中
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 批量发版流程" classname="service-deploy.spec.ts" time="9.465">
+<system-out>
+<![CDATA[批量发版服务 0 状态：发版失败
+批量发版服务 1 状态：发版失败
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 查看发版记录" classname="service-deploy.spec.ts" time="7.392">
+<system-out>
+<![CDATA[发版记录数量: [33m102[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 版本回退功能" classname="service-deploy.spec.ts" time="7.074">
+<system-out>
+<![CDATA[版本历史数量: [33m102[39m
+]]>
+</system-out>
+</testcase>
+<testcase name="服务发版功能 › 服务运行状态显示" classname="service-deploy.spec.ts" time="3.969">
+<system-out>
+<![CDATA[服务 0 状态：发版失败
+服务 1 状态：发版失败
+服务 2 状态：正常
+服务 3 状态：正常
+服务 4 状态：正常
+]]>
+</system-out>
+</testcase>
+</testsuite>
+</testsuites>

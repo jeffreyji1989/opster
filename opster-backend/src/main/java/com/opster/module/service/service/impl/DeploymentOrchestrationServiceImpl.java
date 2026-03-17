@@ -16,6 +16,7 @@ import com.opster.module.project.repository.ProjectRepository;
 import com.opster.module.server.entity.Server;
 import com.opster.module.server.repository.ServerRepository;
 import com.opster.module.service.entity.AppService;
+import com.opster.module.service.entity.ServiceStartScriptVersion;
 import com.opster.module.service.repository.AppServiceRepository;
 import com.opster.module.service.service.*;
 import lombok.extern.slf4j.Slf4j;
@@ -90,6 +91,12 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
     @Autowired
     private com.opster.module.service.transfer.pool.SshConnectionPool sshConnectionPool;
+
+    @Autowired
+    private ServiceConfigService serviceConfigService;
+
+    @Autowired
+    private com.opster.module.service.repository.ServiceStartScriptVersionRepository serviceStartScriptVersionRepository;
 
     @Value("${opster.java-home}")
     private String javaHome;
@@ -230,6 +237,17 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             }
             logger.log(">>> 打包产物上传成功");
 
+
+            // 9.5 上传配置文件（后端项目）
+            if (serviceTypeValue == null || serviceTypeValue != 0) {
+                logger.log(">>> 上传配置文件...");
+                try {
+                    serviceConfigService.uploadConfigFilesToServer(serviceId, sshSession, remoteDir, wsSession);
+                } catch (Exception configException) {
+                    logger.log(">>> 配置文件上传失败（非致命）: " + configException.getMessage());
+                    log.warn("配置文件上传失败，但继续部署流程", configException);
+                }
+            }
             // 10. 部署新版本（用新文件覆盖app.jar）
             logger.log(">>> 部署新版本...");
             deployNewVersion(sshSession, remoteDir, artifact, logger);
@@ -1128,6 +1146,13 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
         // 先停止旧服务
         stopRemoteService(sshSession, remoteDir, wsSession);
 
+        // ========== 新增：上传启动脚本 ==========
+        if (service.getStartScriptVersionId() != null) {
+            sendMessage(wsSession, ">>> 上传启动脚本...");
+            uploadStartScript(sshSession, remoteDir, service);
+        }
+        // ====================================
+
         // 构建环境变量前置命令
         StringBuilder envPrefix = new StringBuilder();
 
@@ -1235,6 +1260,13 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
 
         // 先停止旧服务
         stopRemoteService(sshSession, remoteDir, logger);
+
+        // ========== 新增：上传启动脚本 ==========
+        if (service.getStartScriptVersionId() != null) {
+            logger.log(">>> 上传启动脚本...");
+            uploadStartScript(sshSession, remoteDir, service);
+        }
+        // ====================================
 
         // 构建环境变量前置命令
         StringBuilder envPrefix = new StringBuilder();
@@ -1860,5 +1892,53 @@ public class DeploymentOrchestrationServiceImpl implements DeploymentOrchestrati
             future.completeExceptionally(new RuntimeException("回退失败: " + e.getMessage(), e));
             return future;
         }
+    }
+
+    /**
+     * 上传启动脚本到远程服务器
+     */
+    private void uploadStartScript(Session sshSession, String remoteDir, AppService service) throws Exception {
+        if (service.getStartScriptVersionId() == null) {
+            return;
+        }
+
+        // 获取脚本版本内容
+        ServiceStartScriptVersion version = serviceStartScriptVersionRepository.findById(service.getStartScriptVersionId())
+            .orElseThrow(() -> new Exception("启动脚本版本不存在：" + service.getStartScriptVersionId()));
+
+        String scriptContent = version.getScriptContent();
+        String scriptFileName = "start.sh";
+
+        // 将脚本内容写入临时文件
+        java.nio.file.Path tempScript = java.nio.file.Files.createTempFile("start_script_", ".sh");
+        try {
+            java.nio.file.Files.write(tempScript, scriptContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+            // 上传到远程服务器
+            fileTransferService.uploadFile(tempScript, sshSession, remoteDir + "/" + scriptFileName, null);
+
+            // 设置执行权限
+            String chmodCmd = "chmod +x '" + remoteDir + "/" + scriptFileName + "'";
+            executeRemoteCommandWithoutLogging(sshSession, chmodCmd);
+
+            // 更新服务的启动脚本路径和上传标志
+            service.setStartScript(remoteDir + "/" + scriptFileName);
+            service.setScriptUploaded(1);
+            appServiceRepository.save(service);
+
+        } finally {
+            // 清理临时文件
+            java.nio.file.Files.deleteIfExists(tempScript);
+        }
+    }
+
+    /**
+     * 执行远程命令（不输出日志）
+     */
+    private void executeRemoteCommandWithoutLogging(Session sshSession, String command) throws Exception {
+        ChannelExec channel = (ChannelExec) sshSession.openChannel("exec");
+        channel.setCommand(command);
+        channel.connect();
+        channel.disconnect();
     }
 }

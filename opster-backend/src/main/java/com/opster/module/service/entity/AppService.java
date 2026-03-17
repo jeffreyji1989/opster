@@ -223,4 +223,18 @@ public class AppService extends BaseEntity {
     @Deprecated
     @Column(name = "service_alias", length = 100)
     private String serviceAlias;
+
+    // ========== 新增字段 - 关联启动脚本 ==========
+
+    /**
+     * 关联的启动脚本 ID
+     */
+    @Column(name = "start_script_id")
+    private Integer startScriptId;
+
+    /**
+     * 关联的启动脚本版本 ID
+     */
+    @Column(name = "start_script_version_id")
+    private Integer startScriptVersionId;
 }

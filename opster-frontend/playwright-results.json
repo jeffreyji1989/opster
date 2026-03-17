@@ -1,0 +1,2062 @@
+{
+  "config": {
+    "configFile": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/playwright.config.ts",
+    "rootDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/Users/deffrey/D1_JEFFREY/aiworkspace/opster/opster-frontend/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "playwright-results.xml"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "playwright-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "runAgents": "none",
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.58.2",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173",
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [
+    {
+      "title": "deployment-record.spec.ts",
+      "file": "deployment-record.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "发版记录管理",
+          "file": "deployment-record.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6461,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:30:35.559Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-851d8b79108f415725be",
+              "file": "deployment-record.spec.ts",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按项目名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4462,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:30:43.651Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-7781d2a185b8fc29e824",
+              "file": "deployment-record.spec.ts",
+              "line": 46,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4489,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:30:48.130Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-f399aaea16d38dce2754",
+              "file": "deployment-record.spec.ts",
+              "line": 59,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务器 IP 搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4104,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务器 IP 搜索框不可见，跳过填充\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:30:52.633Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-234d69aa83deeeccc408",
+              "file": "deployment-record.spec.ts",
+              "line": 68,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5400,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:30:56.752Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-832ffe883fc9de51036c",
+              "file": "deployment-record.spec.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "重置搜索表单",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5902,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:02.171Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-39483e12f8bee8a92d67",
+              "file": "deployment-record.spec.ts",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "查看日志功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4446,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "日志内容: >>> 连接成功，正在获取日志...\n=== 部署日志 ===\n项目: 图纸系统\n服务器: 172.16.113.220 (172.16.113.220)\n服务: Service-2\n状态: 失败\n日志路径: D:\\deploy/p401/project401-backend/logs/20260314202911367_service2.log\n=== 日志内容 ===\n\n[2026-03-14 20:29:11] >>> 获取部署锁...\n[2026-03-14 20:29:11] >>> 服务状态已更新为:发版中\n[2026-03-14 20:29:11] >>> 开始本地打包...\n[2026-03-14 20:29:11] === 开始 Maven 项目打包 ===\n[2026-03-14 20:29:11] 项目编码：p401\n[2026-03-14 20:29:11] 服务别名：project401-backend\n[2026-03-14 20:29:11] Git 地址：http://172.16.113.202:3000/Product-4/project401-backend.git\n[2026-03-14 20:29:11] Git 分支：master_ptbai_djl\n[2026-03-14 20:29:11] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:29:11] JDK 版本：jdk8\n[2026-03-14 20:29:11] 源码目录：D:\\deploy/p401/project401-backend/source\n[2026-03-14 20:29:11] 编译路径为空，使用源码目录：D:\\deploy/p401/project401-backend/source\n[2026-03-14 20:29:11] >>> 开始 Git 操作...\n[2026-03-14 20:29:11] >>> Git 操作目录（源码目录）: D:\\deploy/p401/project401-backend/source\n[2026-03-14 20:29:11] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git\n[2026-03-14 20:29:11] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git\n[2026-03-14 20:29:11] >>> 开始执行 Git 操作...\n[2026-03-14 20:29:11] 检测到 Git 仓库已存在，执行 git pull...\n[2026-03-14 20:29:11] 更新远程仓库 URL 以包含认证信息\n[2026-03-14 20:29:11] HEAD 现在位于 e00ed94 1. 发送管理中批量发送报错修改\n[2026-03-14 20:29:11] 已经位于 'master_ptbai_djl'\n[2026-03-14 20:29:11] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。\n[2026-03-14 20:29:12] 来自 http://172.16.113.202:3000/Product-4/project401-backend\n[2026-03-14 20:29:12]  * branch            master_ptbai_djl -> FETCH_HEAD\n[2026-03-14 20:29:12] 已经是最新的。\n[2026-03-14 20:29:12] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/project401-backend.git\n[2026-03-14 20:29:12] 项目根目录（编译目录）: D:\\deploy/p401/project401-backend/source\n[2026-03-14 20:29:12] >>> 开始 Maven 打包...\n[2026-03-14 20:29:12] 使用 JDK 8: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:29:12] JAVA_HOME: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:29:12] M2_HOME: C:\\soft\\apache-maven-3.9.12\n[2026-03-14 20:29:12] PATH: PATH=C:\\soft\\apache-maven-3.9.12/bin:C:\\soft\\Java\\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin\n[2026-03-14 20:29:12] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:29:12] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:29:12] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e\n[2026-03-14 20:29:12] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:29:12] The JAVA_HOME environment variable is not defined correctly,\n[2026-03-14 20:29:12] this environment variable is needed to run this program.\n[2026-03-14 20:29:12] >>> Command failed with exit code: 1\n[2026-03-14 20:29:12] Maven 打包失败\n[2026-03-14 20:29:12] Maven 打包失败 - Maven build failed\n[2026-03-14 20:29:12] >>> 部署失败: Maven build failed\n[2026-03-14 20:29:12] >>> 服务状态已更新为:发版失败\n[2026-03-14 20:29:12] >>> Done.\n\n>>> 日志读取完成\n\n>>> 连接已断开\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:08.092Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-111f521b96439d24fcf6",
+              "file": "deployment-record.spec.ts",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "批量删除功能 - 选择记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4075,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:12.552Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-3d43d77ebb50f1d9eb6b",
+              "file": "deployment-record.spec.ts",
+              "line": 135,
+              "column": 3
+            },
+            {
+              "title": "页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8245,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:10.062Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-3edbcee410401c71d691",
+              "file": "deployment-record.spec.ts",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按项目名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5107,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:19.930Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-b95e316ae3405e8d2ed4",
+              "file": "deployment-record.spec.ts",
+              "line": 46,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5106,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:25.053Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-a551fa37c207090abb21",
+              "file": "deployment-record.spec.ts",
+              "line": 59,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务器 IP 搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4891,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务器 IP 搜索框不可见，跳过填充\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:30.176Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-ca8d7b7a4959d03ed70c",
+              "file": "deployment-record.spec.ts",
+              "line": 68,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5393,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:35.083Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-e00ee4fdf3ce77867db9",
+              "file": "deployment-record.spec.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "重置搜索表单",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6421,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:40.491Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-71ccc2f8d463d8a57e29",
+              "file": "deployment-record.spec.ts",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "查看日志功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4863,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "日志内容: >>> 连接成功，正在获取日志...\n=== 部署日志 ===\n项目: 图纸系统\n服务器: 172.16.113.220 (172.16.113.220)\n服务: Service-1\n状态: 失败\n日志路径: D:\\deploy/p401/eip-backend/logs/20260314203147530_service1.log\n=== 日志内容 ===\n\n[2026-03-14 20:31:47] >>> 获取部署锁...\n[2026-03-14 20:31:47] >>> 服务状态已更新为:发版中\n[2026-03-14 20:31:47] >>> 开始本地打包...\n[2026-03-14 20:31:47] === 开始 Maven 项目打包 ===\n[2026-03-14 20:31:47] 项目编码：p401\n[2026-03-14 20:31:47] 服务别名：eip-backend\n[2026-03-14 20:31:47] Git 地址：http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:31:47] Git 分支：master_ptbai_djl\n[2026-03-14 20:31:47] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:31:47] JDK 版本：jdk8\n[2026-03-14 20:31:47] 源码目录：D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:31:47] 编译路径为空，使用源码目录：D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:31:47] >>> 开始 Git 操作...\n[2026-03-14 20:31:47] >>> Git 操作目录（源码目录）: D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:31:47] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:31:47] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:31:47] >>> 开始执行 Git 操作...\n[2026-03-14 20:31:47] 检测到 Git 仓库已存在，执行 git pull...\n[2026-03-14 20:31:47] 更新远程仓库 URL 以包含认证信息\n[2026-03-14 20:31:47] HEAD 现在位于 d3dc0ab 优化登录接口，去掉电解铝登录\n[2026-03-14 20:31:47] 已经位于 'master_ptbai_djl'\n[2026-03-14 20:31:47] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。\n[2026-03-14 20:31:48] 来自 http://172.16.113.202:3000/Product-4/eip-backend\n[2026-03-14 20:31:48]  * branch            master_ptbai_djl -> FETCH_HEAD\n[2026-03-14 20:31:48] 已经是最新的。\n[2026-03-14 20:31:48] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:31:48] 项目根目录（编译目录）: D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:31:48] >>> 开始 Maven 打包...\n[2026-03-14 20:31:48] 使用 JDK 8: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:31:48] JAVA_HOME: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:31:48] M2_HOME: C:\\soft\\apache-maven-3.9.12\n[2026-03-14 20:31:48] PATH: PATH=C:\\soft\\apache-maven-3.9.12/bin:C:\\soft\\Java\\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin\n[2026-03-14 20:31:48] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:31:48] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:31:48] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e\n[2026-03-14 20:31:48] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:31:48] The JAVA_HOME environment variable is not defined correctly,\n[2026-03-14 20:31:48] this environment variable is needed to run this program.\n[2026-03-14 20:31:48] >>> Command failed with exit code: 1\n[2026-03-14 20:31:48] Maven 打包失败\n[2026-03-14 20:31:48] Maven 打包失败 - Maven build failed\n[2026-03-14 20:31:48] >>> 部署失败: Maven build failed\n[2026-03-14 20:31:48] >>> 服务状态已更新为:发版失败\n[2026-03-14 20:31:48] >>> Done.\n\n>>> 日志读取完成\n\n>>> 连接已断开\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:46.927Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-430b1e275650d95b0ec9",
+              "file": "deployment-record.spec.ts",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "批量删除功能 - 选择记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4632,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:51.807Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-497bc8ac61f4d04351ed",
+              "file": "deployment-record.spec.ts",
+              "line": 135,
+              "column": 3
+            },
+            {
+              "title": "页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7408,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:54.925Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-49e629d6d572272a497a",
+              "file": "deployment-record.spec.ts",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按项目名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4933,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:02.650Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-22fcd02108b3a21377e1",
+              "file": "deployment-record.spec.ts",
+              "line": 46,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务名称搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5004,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:07.603Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-10ca6046af2009618176",
+              "file": "deployment-record.spec.ts",
+              "line": 59,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按服务器 IP 搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4615,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务器 IP 搜索框不可见，跳过填充\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:12.629Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-fb19dd9b146e8c4ef2f9",
+              "file": "deployment-record.spec.ts",
+              "line": 68,
+              "column": 3
+            },
+            {
+              "title": "搜索功能 - 按状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5749,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:17.259Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-d0d1ff43cfb7cb2478ec",
+              "file": "deployment-record.spec.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "重置搜索表单",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10398,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:23.027Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-ad64f97051d8c7573bba",
+              "file": "deployment-record.spec.ts",
+              "line": 88,
+              "column": 3
+            },
+            {
+              "title": "查看日志功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5067,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "日志内容: >>> 连接成功，正在获取日志...\n=== 部署日志 ===\n项目: 图纸系统\n服务器: 172.16.113.220 (172.16.113.220)\n服务: Service-1\n状态: 失败\n日志路径: D:\\deploy/p401/eip-backend/logs/20260314203328403_service1.log\n=== 日志内容 ===\n\n[2026-03-14 20:33:28] >>> 获取部署锁...\n[2026-03-14 20:33:28] >>> 服务状态已更新为:发版中\n[2026-03-14 20:33:28] >>> 开始本地打包...\n[2026-03-14 20:33:28] === 开始 Maven 项目打包 ===\n[2026-03-14 20:33:28] 项目编码：p401\n[2026-03-14 20:33:28] 服务别名：eip-backend\n[2026-03-14 20:33:28] Git 地址：http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:33:28] Git 分支：master_ptbai_djl\n[2026-03-14 20:33:28] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:33:28] JDK 版本：jdk8\n[2026-03-14 20:33:28] 源码目录：D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:33:28] 编译路径为空，使用源码目录：D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:33:28] >>> 开始 Git 操作...\n[2026-03-14 20:33:28] >>> Git 操作目录（源码目录）: D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:33:28] >>> 尝试获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:33:28] >>> 成功获取 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:33:28] >>> 开始执行 Git 操作...\n[2026-03-14 20:33:28] 检测到 Git 仓库已存在，执行 git pull...\n[2026-03-14 20:33:28] 更新远程仓库 URL 以包含认证信息\n[2026-03-14 20:33:28] HEAD 现在位于 d3dc0ab 优化登录接口，去掉电解铝登录\n[2026-03-14 20:33:28] 已经位于 'master_ptbai_djl'\n[2026-03-14 20:33:28] 您的分支与上游分支 'origin/master_ptbai_djl' 一致。\n[2026-03-14 20:33:29] 来自 http://172.16.113.202:3000/Product-4/eip-backend\n[2026-03-14 20:33:29]  * branch            master_ptbai_djl -> FETCH_HEAD\n[2026-03-14 20:33:29] 已经是最新的。\n[2026-03-14 20:33:29] >>> 释放 Git 操作锁: http://172.16.113.202:3000/Product-4/eip-backend.git\n[2026-03-14 20:33:29] 项目根目录（编译目录）: D:\\deploy/p401/eip-backend/source\n[2026-03-14 20:33:29] >>> 开始 Maven 打包...\n[2026-03-14 20:33:29] 使用 JDK 8: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:33:29] JAVA_HOME: C:\\soft\\Java\\jdk1.8.0_201\n[2026-03-14 20:33:29] M2_HOME: C:\\soft\\apache-maven-3.9.12\n[2026-03-14 20:33:29] PATH: PATH=C:\\soft\\apache-maven-3.9.12/bin:C:\\soft\\Java\\jdk1.8.0_201/bin:/Users/deffrey/D1_JEFFREY/soft/gh2.88.1/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/Users/deffrey/D1_JEFFREY/soft/apache-maven-3.9.12/bin:/Users/deffrey/.nvm/versions/node/v22.17.1/bin:/Users/deffrey/.local/bin:/Users/deffrey/D1_JEFFREY/soft/anaconda3/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin\n[2026-03-14 20:33:29] Maven 命令：mvn clean package -DskipTests\n[2026-03-14 20:33:29] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:33:29] 执行完整 Maven 命令：mvn clean package -DskipTests -B -e\n[2026-03-14 20:33:29] 使用 PATH 中的 Maven: C:\\soft\\apache-maven-3.9.12/bin/mvn\n[2026-03-14 20:33:29] The JAVA_HOME environment variable is not defined correctly,\n[2026-03-14 20:33:29] this environment variable is needed to run this program.\n[2026-03-14 20:33:29] >>> Command failed with exit code: 1\n[2026-03-14 20:33:29] Maven 打包失败\n[2026-03-14 20:33:29] Maven 打包失败 - Maven build failed\n[2026-03-14 20:33:29] >>> 部署失败: Maven build failed\n[2026-03-14 20:33:29] >>> 服务状态已更新为:发版失败\n[2026-03-14 20:33:29] >>> Done.\n\n>>> 日志读取完成\n\n>>> 连接已断开\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:33.442Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-e5ed44f8b76188411516",
+              "file": "deployment-record.spec.ts",
+              "line": 107,
+              "column": 3
+            },
+            {
+              "title": "批量删除功能 - 选择记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4721,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:38.523Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "b538ed44c8e8a6a44b16-0fef965a77b534696ab9",
+              "file": "deployment-record.spec.ts",
+              "line": 135,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "service-deploy.spec.ts",
+      "file": "service-deploy.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "服务发版功能",
+          "file": "service-deploy.spec.ts",
+          "line": 17,
+          "column": 6,
+          "specs": [
+            {
+              "title": "服务列表页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3823,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:16.656Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-c706c7041d22ff6e12bd",
+              "file": "service-deploy.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按运行状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5398,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 1 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:20.498Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-a8250d3fe1bc542fd863",
+              "file": "service-deploy.spec.ts",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按环境搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5314,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:25.917Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-c2a2879e302da0dff771",
+              "file": "service-deploy.spec.ts",
+              "line": 57,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按启用状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5394,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:31.247Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-d4f632923375add02f61",
+              "file": "service-deploy.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "单服务发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6830,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版前状态: 正常\n"
+                        },
+                        {
+                          "text": "发版消息: 正在发版，详细信息去发版记录查看\n"
+                        },
+                        {
+                          "text": "发版后状态: 发版中\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:36.660Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-b22bb87d8a5bc13c836e",
+              "file": "service-deploy.spec.ts",
+              "line": 77,
+              "column": 3
+            },
+            {
+              "title": "批量发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8805,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "批量发版服务 0 状态：发版失败\n"
+                        },
+                        {
+                          "text": "批量发版服务 1 状态：发版失败\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:43.505Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-3b9ffabbd2a400401d60",
+              "file": "service-deploy.spec.ts",
+              "line": 117,
+              "column": 3
+            },
+            {
+              "title": "查看发版记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5962,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版记录数量: \u001b[33m98\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:52.328Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-29290ee23f3a91f153e4",
+              "file": "service-deploy.spec.ts",
+              "line": 166,
+              "column": 3
+            },
+            {
+              "title": "版本回退功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5629,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "版本历史数量: \u001b[33m98\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:31:58.303Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-b74ef7507006736c753d",
+              "file": "service-deploy.spec.ts",
+              "line": 204,
+              "column": 3
+            },
+            {
+              "title": "服务运行状态显示",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3882,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 1 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 3 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 4 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:03.949Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-b3d06488f47320f8b674",
+              "file": "service-deploy.spec.ts",
+              "line": 248,
+              "column": 3
+            },
+            {
+              "title": "服务列表页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3936,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:32:56.471Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-9ed78f249e99b2153285",
+              "file": "service-deploy.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按运行状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5425,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 1 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:00.422Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-a254ed66813669f16545",
+              "file": "service-deploy.spec.ts",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按环境搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5341,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:05.862Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-4bd3abdd529a1e639614",
+              "file": "service-deploy.spec.ts",
+              "line": 57,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按启用状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5475,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:11.218Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-52e8163d3d24b8a406e4",
+              "file": "service-deploy.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "单服务发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7529,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版前状态: 正常\n"
+                        },
+                        {
+                          "text": "发版消息: 正在发版，详细信息去发版记录查看\n"
+                        },
+                        {
+                          "text": "发版后状态: 发版失败\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:16.706Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-306488781817e7486490",
+              "file": "service-deploy.spec.ts",
+              "line": 77,
+              "column": 3
+            },
+            {
+              "title": "批量发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9553,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "批量发版服务 0 状态：发版失败\n"
+                        },
+                        {
+                          "text": "批量发版服务 1 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:24.250Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-ff1a9a93f42c46d86dea",
+              "file": "service-deploy.spec.ts",
+              "line": 117,
+              "column": 3
+            },
+            {
+              "title": "查看发版记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7243,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版记录数量: \u001b[33m100\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:33.823Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-cc471106e4c3f1bc519a",
+              "file": "service-deploy.spec.ts",
+              "line": 166,
+              "column": 3
+            },
+            {
+              "title": "版本回退功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7128,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "版本历史数量: \u001b[33m100\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:41.080Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-f0f54ead21d57ab9ed1d",
+              "file": "service-deploy.spec.ts",
+              "line": 204,
+              "column": 3
+            },
+            {
+              "title": "服务运行状态显示",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "firefox",
+                  "projectName": "firefox",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3988,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：发版失败\n"
+                        },
+                        {
+                          "text": "服务 1 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 3 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 4 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:33:48.222Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-6580472986e5a57b1a29",
+              "file": "service-deploy.spec.ts",
+              "line": 248,
+              "column": 3
+            },
+            {
+              "title": "服务列表页面应该正确加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4005,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:43.276Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-31de501944be44dd274a",
+              "file": "service-deploy.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按运行状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5567,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 1 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:47.296Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-fec63ea9e8fbd4f0fd5a",
+              "file": "service-deploy.spec.ts",
+              "line": 41,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按环境搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5401,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:52.878Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-488eb3f2014977eb3908",
+              "file": "service-deploy.spec.ts",
+              "line": 57,
+              "column": 3
+            },
+            {
+              "title": "服务搜索功能 - 按启用状态搜索",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5439,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:34:58.295Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-4790506026422f82e9f1",
+              "file": "service-deploy.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "单服务发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7545,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版前状态: 正常\n"
+                        },
+                        {
+                          "text": "发版消息: 正在发版，详细信息去发版记录查看\n"
+                        },
+                        {
+                          "text": "发版后状态: 发版中\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:35:03.747Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-bfd37931b2956879d094",
+              "file": "service-deploy.spec.ts",
+              "line": 77,
+              "column": 3
+            },
+            {
+              "title": "批量发版流程",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9465,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "批量发版服务 0 状态：发版失败\n"
+                        },
+                        {
+                          "text": "批量发版服务 1 状态：发版失败\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:35:11.307Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-88fb2f9a28cc14e8dbc7",
+              "file": "service-deploy.spec.ts",
+              "line": 117,
+              "column": 3
+            },
+            {
+              "title": "查看发版记录",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7392,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "发版记录数量: \u001b[33m102\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:35:20.787Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-a08a2cbe3433a664ee69",
+              "file": "service-deploy.spec.ts",
+              "line": 166,
+              "column": 3
+            },
+            {
+              "title": "版本回退功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7074,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "版本历史数量: \u001b[33m102\u001b[39m\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:35:28.193Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-5f27eef3f476507cfc84",
+              "file": "service-deploy.spec.ts",
+              "line": 204,
+              "column": 3
+            },
+            {
+              "title": "服务运行状态显示",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "webkit",
+                  "projectName": "webkit",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3969,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "服务 0 状态：发版失败\n"
+                        },
+                        {
+                          "text": "服务 1 状态：发版失败\n"
+                        },
+                        {
+                          "text": "服务 2 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 3 状态：正常\n"
+                        },
+                        {
+                          "text": "服务 4 状态：正常\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-03-14T12:35:35.282Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "366f742e79007f872829-f1198f670b214c3ce765",
+              "file": "service-deploy.spec.ts",
+              "line": 248,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-03-14T12:30:33.808Z",
+    "duration": 305548.465,
+    "expected": 51,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

@@ -88,6 +88,7 @@
       <el-table-column label="操作" width="200" fixed="right">
         <template #default="scope">
           <el-button size="small" type="primary" @click="handleAction(scope.row, 'deploy')">发版</el-button>
+          <el-button size="small" type="success" @click="handleCopy(scope.row)">复制</el-button>
           <el-dropdown style="margin-left: 10px;" @command="(cmd) => handleMoreCommand(cmd, scope.row)">
             <el-button size="small">
               更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
@@ -105,6 +106,10 @@
                 <!-- 版本回退子菜单 -->
                 <el-dropdown-item command="rollback_quick">快速回退（上一版本）</el-dropdown-item>
                 <el-dropdown-item command="rollback_history">选择历史版本回退</el-dropdown-item>
+                <!-- 配置文件管理 -->
+                <el-dropdown-item command="config_files" divided>配置文件管理</el-dropdown-item>
+                <!-- 启动脚本管理 -->
+                <el-dropdown-item command="start_scripts" divided>启动脚本管理</el-dropdown-item>
                 <el-dropdown-item command="edit" divided>编辑</el-dropdown-item>
                 <el-dropdown-item command="toggle_enabled">{{ scope.row.status === 1 ? '禁用' : '启用' }}</el-dropdown-item>
                 <el-dropdown-item command="delete" style="color: #f56c6c;">删除</el-dropdown-item>
@@ -317,15 +322,37 @@
             <el-row :gutter="20" v-if="isBackendType(item.serviceType)">
               <el-col :span="24">
                 <el-form-item label="启动脚本" label-width="80px">
-                  <el-input v-model="item.startScript" type="textarea" :rows="2" placeholder="./start.sh" />
+                  <el-select
+                    v-model="item.startScriptId"
+                    placeholder="选择启动脚本（可选）"
+                    filterable
+                    clearable
+                    style="width: 100%"
+                    @change="(val) => handleStartScriptChange(item, val)">
+                    <el-option
+                      v-for="script in startScripts"
+                      :key="script.id"
+                      :label="script.name + (script.isDefault === 1 ? '（默认）' : '')"
+                      :value="script.id" />
+                  </el-select>
                   <div style="margin-top: 5px;">
                     <el-button
                       type="primary"
                       size="small"
-                      @click="handleGenerateScript(item)">
-                      生成脚本
+                      @click="handleGoToScriptManagement">
+                      脚本管理
+                    </el-button>
+                    <el-button
+                      v-if="item.startScriptId"
+                      type="info"
+                      size="small"
+                      @click="handleViewScriptDetail(item)">
+                      查看脚本
                     </el-button>
                   </div>
+                  <span style="font-size: 12px; color: #999;">
+                    选择已创建的启动脚本，发版时会自动上传到服务器
+                  </span>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -568,6 +595,283 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 配置文件管理对话框 -->
+    <el-dialog v-model="configFilesVisible" title="配置文件管理" width="90%">
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 15px;">
+        <template #title>
+          配置文件在发版时会自动上传到服务器部署目录下（与 jar 包同级），平台配置优先于 Git 仓库配置
+        </template>
+      </el-alert>
+
+      <div class="config-header" style="margin-bottom: 15px;">
+        <el-button type="primary" @click="handleAddConfigFile">
+          + 新增配置文件
+        </el-button>
+      </div>
+
+      <el-table :data="configFileList" style="width: 100%">
+        <el-table-column prop="filename" label="文件名" width="250" />
+        <el-table-column prop="lastModified" label="最后修改时间" width="180">
+          <template #default="scope">
+            {{ scope.row.lastModified ? scope.row.lastModified.replace('T', ' ').substring(0, 19) : '' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="versionTag" label="版本标签" width="120" />
+        <el-table-column label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="scope.row.isDeployed ? 'success' : 'warning'">
+              {{ scope.row.isDeployed ? '已部署' : '未部署' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="300" fixed="right">
+          <template #default="scope">
+            <el-button size="small" @click="handleEditConfigFile(scope.row)">
+              编辑
+            </el-button>
+            <el-button size="small" @click="handleViewConfigHistory(scope.row)">
+              历史版本
+            </el-button>
+            <el-button size="small" type="danger" @click="handleDeleteConfigFile(scope.row)">
+              删除
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <el-button @click="configFilesVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 配置文件编辑对话框 -->
+    <el-dialog v-model="configFileEditVisible" title="编辑配置文件" width="80%">
+      <el-form :model="configEditForm" label-width="100px">
+        <el-form-item label="文件名">
+          <el-input v-model="configEditForm.filename" placeholder="如：application-dev.yml" :disabled="!!configEditForm.id" />
+        </el-form-item>
+        <el-form-item label="版本标签">
+          <el-input v-model="configEditForm.versionTag" placeholder="如：v1.0.0" />
+        </el-form-item>
+        <el-form-item label="版本描述">
+          <el-input
+            v-model="configEditForm.versionDescription"
+            type="textarea"
+            :rows="2"
+            placeholder="描述此版本的变更内容"
+          />
+        </el-form-item>
+        <el-form-item label="配置内容">
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            style="margin-bottom: 10px;">
+            <template #title>
+              YAML 格式，注意缩进（2 空格）
+            </template>
+          </el-alert>
+          <el-input
+            v-model="configEditForm.content"
+            type="textarea"
+            :rows="20"
+            style="font-family: monospace;"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="configFileEditVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveConfigFile">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 配置文件版本历史对话框 -->
+    <el-dialog v-model="configFileHistoryVisible" title="版本历史" width="80%">
+      <el-timeline>
+        <el-timeline-item
+          v-for="version in configFileVersions"
+          :key="version.id"
+          :timestamp="version.createTime ? version.createTime.replace('T', ' ').substring(0, 19) : ''"
+          placement="top">
+          <el-card>
+            <div class="version-card">
+              <el-tag>{{ version.versionTag || '未标记' }}</el-tag>
+              <el-tag :type="version.isDeployed ? 'success' : 'info'" style="margin-left: 10px;">
+                {{ version.isDeployed ? '已部署' : '未部署' }}
+              </el-tag>
+              <p style="margin-top: 10px;">{{ version.versionDescription || '无描述' }}</p>
+              <div class="version-actions" style="margin-top: 10px;">
+                <el-button size="small" @click="handleViewVersionContent(version)">
+                  查看内容
+                </el-button>
+                <el-button size="small" type="primary" @click="handleRollbackToConfigVersion(version)">
+                  回退到此版本
+                </el-button>
+              </div>
+            </div>
+          </el-card>
+        </el-timeline-item>
+      </el-timeline>
+
+      <template #footer>
+        <el-button @click="configFileHistoryVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 启动脚本管理对话框 -->
+    <el-dialog v-model="startScriptsVisible" title="启动脚本管理" width="90%">
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 15px;">
+        <template #title>
+          配置启动脚本后，发版时会自动上传到服务器部署目录下（与 jar 包同级），平台配置的脚本优先于服务器上的脚本
+        </template>
+      </el-alert>
+
+      <div class="start-script-header" style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <el-space>
+          <el-select
+            v-model="selectedScriptId"
+            placeholder="选择已创建的脚本"
+            filterable
+            clearable
+            style="width: 300px"
+            @change="handleSelectScript">
+            <el-option
+              v-for="script in allScripts"
+              :key="script.id"
+              :label="script.name + (script.isDefault === 1 ? '（默认）' : '')"
+              :value="script.id" />
+          </el-select>
+          <el-button type="primary" @click="handleViewScriptDetail">
+            查看脚本详情
+          </el-button>
+        </el-space>
+        <el-space>
+          <el-button type="primary" @click="handleCreateScript">
+            <el-icon><Plus /></el-icon>
+            新增脚本
+          </el-button>
+          <el-button @click="handleGoToScriptManagement">
+            管理脚本
+          </el-button>
+        </el-space>
+      </div>
+
+      <el-table :data="scriptVersions" style="width: 100%">
+        <el-table-column prop="versionNo" label="版本号" width="120" />
+        <el-table-column prop="versionDescription" label="描述" width="200" />
+        <el-table-column prop="createTime" label="创建时间" width="180" />
+        <el-table-column label="状态" width="100">
+          <template #default="scope">
+            <el-tag :type="scope.row.isActive === 1 ? 'success' : 'info'">
+              {{ scope.row.isActive === 1 ? '激活' : '历史' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200">
+          <template #default="scope">
+            <el-button
+              v-if="scope.row.isActive !== 1"
+              size="small"
+              @click="handleActivateScriptVersion(scope.row)">
+              激活
+            </el-button>
+            <el-button size="small" @click="handleViewScriptVersion(scope.row)">
+              查看
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <template #footer>
+        <el-button @click="startScriptsVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 启动脚本详情/编辑对话框 -->
+    <el-dialog v-model="scriptDetailVisible" :title="scriptEditMode ? '编辑脚本' : '脚本详情'" width="900px">
+      <div v-if="currentScriptDetail">
+        <el-form :model="currentScriptDetail" label-width="100px">
+          <el-form-item label="脚本名称">
+            <el-input
+              v-model="currentScriptDetail.name"
+              :readonly="!scriptEditMode"
+              placeholder="请输入脚本名称" />
+          </el-form-item>
+          <el-form-item label="描述">
+            <el-input
+              v-model="currentScriptDetail.description"
+              :readonly="!scriptEditMode"
+              type="textarea"
+              :rows="2"
+              placeholder="请输入脚本描述" />
+          </el-form-item>
+          <el-form-item label="服务端口">
+            <el-input-number
+              v-model="currentScriptDetail.port"
+              :readonly="!scriptEditMode"
+              :min="1"
+              :max="65535"
+              style="width: 100%" />
+          </el-form-item>
+          <el-form-item label="JVM 参数">
+            <el-input
+              v-model="currentScriptDetail.jvmArgs"
+              :readonly="!scriptEditMode"
+              type="textarea"
+              :rows="3"
+              placeholder="例如：-Xms256m -Xmx512m -Dspring.profiles.active=dev" />
+          </el-form-item>
+          <el-form-item label="前置命令">
+            <el-input
+              v-model="currentScriptDetail.preJavaCmd"
+              :readonly="!scriptEditMode"
+              type="textarea"
+              :rows="2"
+              placeholder="在 Java 命令执行前运行的命令，例如：fuser -k 8080/tcp" />
+          </el-form-item>
+          <el-form-item label="后置命令">
+            <el-input
+              v-model="currentScriptDetail.postJavaCmd"
+              :readonly="!scriptEditMode"
+              type="textarea"
+              :rows="2"
+              placeholder="在 Java 命令执行后运行的命令，例如：curl http://localhost:8080/health" />
+          </el-form-item>
+          <el-form-item label="设为默认">
+            <el-switch v-model="currentScriptDetail.isDefault" :disabled="!scriptEditMode" :active-value="1" :inactive-value="0" />
+          </el-form-item>
+        </el-form>
+        <el-divider />
+        <div style="margin-top: 20px;">
+          <div style="margin-bottom: 10px; font-weight: bold;">
+            脚本内容预览：
+            <el-tag v-if="scriptEditMode" type="warning" size="small" style="margin-left: 10px;">
+              保存后自动生成
+            </el-tag>
+          </div>
+          <pre style="background: #f5f7fa; padding: 15px; border-radius: 4px; max-height: 500px; overflow: auto; font-size: 12px;">{{ currentScriptDetail.scriptContent }}</pre>
+        </div>
+      </div>
+      <template #footer>
+        <template v-if="scriptEditMode">
+          <el-button @click="scriptDetailVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleSaveScript">保存</el-button>
+        </template>
+        <template v-else>
+          <el-button @click="scriptDetailVisible = false">关闭</el-button>
+          <el-button type="primary" @click="handleEditScript">编辑</el-button>
+        </template>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -575,11 +879,13 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, Plus } from '@element-plus/icons-vue'
 import 'xterm/css/xterm.css'
 import { Terminal } from 'xterm'
 import { AttachAddon } from 'xterm-addon-attach'
 import { FitAddon } from 'xterm-addon-fit'
+import { getServiceConfigFiles, saveServiceConfigFile, deleteServiceConfigFile, getConfigFileVersions, rollbackConfigFileVersion } from '../api/service-config'
+import { listScripts, getScriptDetail, createScript, updateScript, getDefaultScript } from '../api/service-start-script'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -618,6 +924,31 @@ const versionEditForm = reactive({
   tag: ''
 })
 
+// 配置文件管理相关
+const configFilesVisible = ref(false)
+const configFileList = ref([])
+const configFileEditVisible = ref(false)
+const configFileHistoryVisible = ref(false)
+const currentConfigFile = ref(null)
+const configEditForm = reactive({
+  id: null,
+  filename: '',
+  content: '',
+  versionTag: '',
+  versionDescription: ''
+})
+const configFileVersions = ref([])
+
+// 启动脚本管理相关
+const startScriptsVisible = ref(false)
+const allScripts = ref([]) // 所有启动脚本列表
+const selectedScriptId = ref(null) // 选中的脚本 ID
+const scriptVersions = ref([]) // 当前脚本的版本列表
+const currentScriptDetail = ref(null) // 当前脚本详情
+const scriptDetailVisible = ref(false) // 脚本详情对话框
+const scriptEditMode = ref(false) // 是否为编辑模式
+const currentEditingService = ref(null) // 当前编辑的服务
+
 // 发版记录相关
 const deploymentRecordsVisible = ref(false)
 const deploymentRecords = ref([])
@@ -628,6 +959,9 @@ const scriptDialogVisible = ref(false)
 const generatedScript = ref('')
 const currentEditingItem = ref(null)
 const uploadingScript = ref(false) // 上传中的状态
+
+// 启动脚本管理相关
+const startScripts = ref([]) // 启动脚本列表
 
 // 服务类型映射（支持 4 种类型）
 const serviceTypeMap = {
@@ -1188,6 +1522,30 @@ const fetchInstalledNodeVersions = async () => {
   }
 }
 
+// 加载启动脚本列表
+const loadStartScripts = async () => {
+  try {
+    const res = await listScripts()
+    startScripts.value = res || []
+  } catch (error) {
+    console.error('加载启动脚本列表失败:', error)
+  }
+}
+
+// 处理启动脚本选择变化
+const handleStartScriptChange = (item, scriptId) => {
+  if (scriptId) {
+    // 选中的脚本，更新脚本内容
+    const selectedScript = startScripts.value.find(s => s.id === scriptId)
+    if (selectedScript) {
+      item.startScript = selectedScript.scriptContent || `./start.sh`
+    }
+  } else {
+    // 清空选择
+    item.startScript = ''
+  }
+}
+
 const fetchData = async () => {
   loading.value = true
   try {
@@ -1295,6 +1653,9 @@ const handleAddService = () => {
     compilePath: '',
     buildScript: defaultBuildScript,
     nodeVersion: defaultNodeVersion,  // 根据类型设置默认版本
+    // 启动脚本
+    startScriptId: null,
+    startScriptVersionId: null,
     startScript: defaultProjectType === 'backend' || defaultProjectType === 'admin' ? './start.sh' : '',
     status: 1
   })
@@ -1364,10 +1725,80 @@ const handleEdit = async (row) => {
     buildScript: row.buildScript || row.mavenCmd || row.buildCmd || '',
     nodeVersion: row.nodeVersion || '',
     // 启动脚本
+    startScriptId: row.startScriptId || null,
+    startScriptVersionId: row.startScriptVersionId || null,
     startScript: row.startScript || '',
     // 状态
     status: row.status,
     scriptUploaded: row.scriptUploaded || 0
+  }]
+
+  // 默认展开第一个面板
+  activeCollapseNames.value = [0]
+  dialogVisible.value = true
+}
+
+// 复制服务（复用 handleEdit 的逻辑，但设置为新增模式）
+const handleCopy = async (row) => {
+  // 重置表单为新增模式
+  form.id = null
+  form.projectId = row.projectId
+
+  // 先加载项目的子项目列表
+  try {
+    const subProjects = await request.get(`/sub-project/project/${row.projectId}`)
+    availableSubProjects.value = Array.isArray(subProjects) ? subProjects : []
+  } catch (error) {
+    console.error('获取子项目列表失败:', error)
+    availableSubProjects.value = []
+  }
+
+  // 尝试通过 repoGitUrl 匹配对应的子项目
+  let matchedSubProjectId = row.subProjectId || null
+  let matchedSubProjectName = row.subProjectName || ''
+  let matchedProjectType = row.projectType || ''
+
+  if (!matchedSubProjectId && row.repoGitUrl && availableSubProjects.value.length > 0) {
+    const matched = availableSubProjects.value.find(sub => sub.gitUrl === row.repoGitUrl)
+    if (matched) {
+      matchedSubProjectId = matched.id
+      matchedSubProjectName = matched.subProjectName
+      matchedProjectType = matched.projectType
+    }
+  }
+
+  // 填充表单数据（复制当前服务的所有配置）
+  form.items = [{
+    serviceName: (row.serviceName || '') + '_copy',  // 服务名称添加后缀
+    // 关联子项目信息
+    subProjectId: matchedSubProjectId,
+    subProjectName: matchedSubProjectName,
+    // Git 信息
+    repoGitUrl: row.repoGitUrl || '',
+    gitAccountId: row.gitAccountId || null,
+    gitBranch: row.gitBranch || 'master',
+    projectPath: row.projectPath || '',
+    deployPath: row.deployPath || '',
+    // 项目类型
+    projectType: matchedProjectType,
+    serviceType: row.serviceType ?? row.repositoryType ?? 1,
+    // 服务器配置
+    serverId: row.serverId,
+    env: row.env,
+    port: row.port,
+    // 路径配置
+    logPath: row.logPath,
+    compilePath: row.compilePath || '',
+    // 构建配置
+    buildScript: row.buildScript || row.mavenCmd || row.buildCmd || '',
+    nodeVersion: row.nodeVersion || '',
+    // 启动脚本
+    startScriptId: row.startScriptId || null,
+    startScriptVersionId: row.startScriptVersionId || null,
+    startScript: row.startScript || '',
+    // 状态
+    status: 1,
+    scriptUploaded: 0  // 复制后重置脚本上传状态
   }]
 
   // 默认展开第一个面板
@@ -1687,6 +2118,12 @@ const handleMoreCommand = (command, row) => {
     case 'rollback_history':
       openVersionHistory(row)
       break
+    case 'config_files':
+      openConfigFiles(row)
+      break
+    case 'start_scripts':
+      openStartScripts(row)
+      break
     case 'edit':
       handleEdit(row)
       break
@@ -1697,6 +2134,317 @@ const handleMoreCommand = (command, row) => {
       handleDelete(row)
       break
   }
+}
+
+// ==================== 配置文件管理相关函数 ====================
+
+// 打开配置文件管理对话框
+const openConfigFiles = async (row) => {
+  currentService.value = row
+  configFileList.value = []
+  configFilesVisible.value = true
+
+  try {
+    const res = await getServiceConfigFiles(row.id)
+    configFileList.value = res || []
+  } catch (error) {
+    console.error('获取配置文件列表失败:', error)
+    ElMessage.error('获取配置文件列表失败')
+  }
+}
+
+// ========== 启动脚本管理相关函数 ==========
+
+// 打开启动脚本管理对话框
+const openStartScripts = async (row) => {
+  currentEditingService.value = row
+  startScriptsVisible.value = true
+  selectedScriptId.value = row.startScriptId
+
+  // 加载所有脚本列表
+  await loadAllScripts()
+
+  // 加载当前脚本的版本列表
+  if (selectedScriptId.value) {
+    await loadScriptVersions(selectedScriptId.value)
+  }
+}
+
+// 加载所有启动脚本列表
+const loadAllScripts = async () => {
+  try {
+    const res = await listScripts()
+    allScripts.value = res || []
+  } catch (error) {
+    console.error('加载启动脚本列表失败:', error)
+  }
+}
+
+// 加载脚本版本列表
+const loadScriptVersions = async (scriptId) => {
+  try {
+    const res = await request.get(`/service-start-script/${scriptId}/versions`)
+    scriptVersions.value = res || []
+  } catch (error) {
+    console.error('加载脚本版本列表失败:', error)
+  }
+}
+
+// 选择脚本
+const handleSelectScript = async (scriptId) => {
+  if (scriptId) {
+    await loadScriptVersions(scriptId)
+  } else {
+    scriptVersions.value = []
+  }
+}
+
+// 查看脚本详情
+const handleViewScriptDetail = async () => {
+  if (!selectedScriptId.value) {
+    ElMessage.warning('请先选择脚本')
+    return
+  }
+  try {
+    const detail = await getScriptDetail(selectedScriptId.value)
+    currentScriptDetail.value = detail
+    scriptDetailVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载脚本详情失败')
+  }
+}
+
+// 查看脚本版本
+const handleViewScriptVersion = (version) => {
+  currentScriptDetail.value = {
+    ...version,
+    name: allScripts.value.find(s => s.id === selectedScriptId.value)?.name || ''
+  }
+  scriptDetailVisible.value = true
+}
+
+// 激活脚本版本
+const handleActivateScriptVersion = async (version) => {
+  try {
+    await request.post(`/service-start-script/${selectedScriptId.value}/activate/${version.id}`)
+    ElMessage.success('版本激活成功')
+    await loadScriptVersions(selectedScriptId.value)
+    await loadAllScripts()
+  } catch (error) {
+    ElMessage.error('激活版本失败')
+  }
+}
+
+// 跳转到脚本管理页面（如果需要独立页面的话）
+const handleGoToScriptManagement = () => {
+  ElMessage.info('请在编辑服务时选择和配置启动脚本')
+}
+
+// 创建脚本
+const handleCreateScript = async () => {
+  try {
+    // 获取默认脚本模板
+    const defaultScript = await getDefaultScript()
+
+    // 初始化脚本详情
+    currentScriptDetail.value = {
+      name: '新启动脚本',
+      description: '',
+      port: 8080,
+      jvmArgs: '',
+      preJavaCmd: '',
+      postJavaCmd: '',
+      isDefault: 0,
+      scriptContent: defaultScript?.scriptContent || ''
+    }
+
+    scriptEditMode.value = true
+    scriptDetailVisible.value = true
+  } catch (error) {
+    ElMessage.error('加载默认脚本模板失败')
+  }
+}
+
+// 编辑脚本
+const handleEditScript = () => {
+  scriptEditMode.value = true
+}
+
+// 保存脚本（创建或更新）
+const handleSaveScript = async () => {
+  if (!currentScriptDetail.value?.name) {
+    ElMessage.warning('请输入脚本名称')
+    return
+  }
+
+  try {
+    const data = {
+      name: currentScriptDetail.value.name,
+      description: currentScriptDetail.value.description || '',
+      port: currentScriptDetail.value.port,
+      jvmArgs: currentScriptDetail.value.jvmArgs || '',
+      preJavaCmd: currentScriptDetail.value.preJavaCmd || '',
+      postJavaCmd: currentScriptDetail.value.postJavaCmd || '',
+      isDefault: currentScriptDetail.value.isDefault || 0
+    }
+
+    // 判断是创建还是更新
+    if (currentScriptDetail.value.id) {
+      // 更新现有脚本
+      data.id = currentScriptDetail.value.id
+      await updateScript(data)
+      ElMessage.success('脚本更新成功')
+    } else {
+      // 创建新脚本
+      await createScript(data)
+      ElMessage.success('脚本创建成功')
+    }
+
+    // 关闭对话框并刷新列表
+    scriptDetailVisible.value = false
+    scriptEditMode.value = false
+    await loadAllScripts()
+  } catch (error) {
+    ElMessage.error('保存脚本失败')
+  }
+}
+
+// 更新服务的启动脚本配置
+const updateServiceScript = async () => {
+  if (!currentEditingService.value) return
+
+  try {
+    const service = {
+      ...currentEditingService.value,
+      startScriptId: selectedScriptId.value,
+      startScriptVersionId: scriptVersions.value.find(v => v.isActive === 1)?.id || null
+    }
+    await request.put('/service', service)
+    ElMessage.success('启动脚本配置已更新')
+    fetchData()
+  } catch (error) {
+    ElMessage.error('更新启动脚本配置失败')
+  }
+}
+
+// 添加配置文件
+const handleAddConfigFile = () => {
+  configEditForm.id = null
+  configEditForm.filename = ''
+  configEditForm.content = ''
+  configEditForm.versionTag = ''
+  configEditForm.versionDescription = ''
+  configFileEditVisible.value = true
+}
+
+// 编辑配置文件
+const handleEditConfigFile = (row) => {
+  configEditForm.id = row.id
+  configEditForm.filename = row.filename
+  configEditForm.content = row.content
+  configEditForm.versionTag = row.versionTag || ''
+  configEditForm.versionDescription = ''
+  configFileEditVisible.value = true
+}
+
+// 保存配置文件
+const handleSaveConfigFile = async () => {
+  if (!configEditForm.filename) {
+    return ElMessage.warning('请输入文件名')
+  }
+  if (!configEditForm.content) {
+    return ElMessage.warning('请输入配置内容')
+  }
+
+  try {
+    const res = await saveServiceConfigFile(currentService.value.id, {
+      id: configEditForm.id,
+      filename: configEditForm.filename,
+      content: configEditForm.content,
+      versionTag: configEditForm.versionTag,
+      versionDescription: configEditForm.versionDescription
+    })
+
+    if (res.success) {
+      ElMessage.success('配置文件保存成功')
+      configFileEditVisible.value = false
+      // 重新加载配置文件列表
+      openConfigFiles(currentService.value)
+    } else {
+      ElMessage.error(res.message || '保存失败')
+    }
+  } catch (error) {
+    console.error('保存配置文件失败:', error)
+    ElMessage.error('保存配置文件失败')
+  }
+}
+
+// 删除配置文件
+const handleDeleteConfigFile = async (row) => {
+  ElMessageBox.confirm(`确认删除配置文件 "${row.filename}"？`, '删除确认', {
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const res = await deleteServiceConfigFile(currentService.value.id, row.id)
+      if (res.success) {
+        ElMessage.success('配置文件删除成功')
+        // 重新加载配置文件列表
+        openConfigFiles(currentService.value)
+      } else {
+        ElMessage.error(res.message || '删除失败')
+      }
+    } catch (error) {
+      console.error('删除配置文件失败:', error)
+      ElMessage.error('删除配置文件失败')
+    }
+  }).catch(() => {})
+}
+
+// 查看配置文件版本历史
+const handleViewConfigHistory = async (row) => {
+  currentConfigFile.value = row
+  configFileVersions.value = []
+  configFileHistoryVisible.value = true
+
+  try {
+    const versions = await getConfigFileVersions(currentService.value.id, row.filename)
+    configFileVersions.value = versions || []
+  } catch (error) {
+    console.error('获取版本历史失败:', error)
+    ElMessage.error('获取版本历史失败')
+  }
+}
+
+// 查看版本内容
+const handleViewVersionContent = (version) => {
+  configEditForm.id = null
+  configEditForm.filename = currentConfigFile.value?.filename || ''
+  configEditForm.content = version.content
+  configEditForm.versionTag = version.versionTag || ''
+  configEditForm.versionDescription = version.versionDescription || ''
+  configFileEditVisible.value = true
+}
+
+// 回退到配置文件的某个版本
+const handleRollbackToConfigVersion = async (version) => {
+  ElMessageBox.confirm(`确认回退到版本 "${version.versionTag || '未标记'}"？`, '回退确认', {
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const res = await rollbackConfigFileVersion(currentService.value.id, version.id)
+      if (res.success) {
+        ElMessage.success('版本回退成功')
+        configFileHistoryVisible.value = false
+        // 重新加载配置文件列表
+        openConfigFiles(currentService.value)
+      } else {
+        ElMessage.error(res.message || '回退失败')
+      }
+    } catch (error) {
+      console.error('回退版本失败:', error)
+      ElMessage.error('回退版本失败')
+    }
+  }).catch(() => {})
 }
 
 // 处理回退命令（快速回退或选择历史版本）- 保留用于兼容
@@ -2364,6 +3112,7 @@ const handleViewRecordLog = (record) => {
 onMounted(() => {
   fetchData()
   fetchInstalledNodeVersions()
+  loadStartScripts() // 加载启动脚本列表
 })
 </script>
 
