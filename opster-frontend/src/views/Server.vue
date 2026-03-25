@@ -42,9 +42,10 @@
           <el-switch v-model="scope.row.status" :active-value="1" :inactive-value="0" @change="handleToggleStatus(scope.row)" />
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="280">
+      <el-table-column label="操作" width="380">
         <template #default="scope">
           <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
+          <el-button size="small" type="success" @click="handleTerminal(scope.row)">终端</el-button>
           <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           <el-button size="small" type="warning" @click="handleDeployKey(scope.row)" v-if="scope.row.password">
             生成密钥
@@ -169,14 +170,70 @@
         <el-button type="primary" @click="keyDeployDialogVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- Terminal Dialog -->
+    <el-dialog v-model="terminalVisible" title="服务器终端" width="90%" height="80vh" :close-on-click-modal="false">
+      <div class="terminal-container">
+        <!-- Left Side: Command Chat -->
+        <div class="terminal-left">
+          <div class="chat-messages" ref="chatMessagesRef">
+            <div v-for="(msg, index) in chatMessages" :key="index" :class="['chat-message', msg.type]">
+              <strong>{{ msg.sender }}:</strong>
+              <span>{{ msg.content }}</span>
+            </div>
+          </div>
+          <div class="chat-input-container">
+            <el-input
+              v-model="chatInput"
+              placeholder="描述您想执行的操作，例如：查看日志、重启服务..."
+              @keyup.enter="sendChatMessage"
+              clearable
+            >
+              <template #append>
+                <el-button @click="sendChatMessage">发送</el-button>
+              </template>
+            </el-input>
+          </div>
+          <!-- Recommended Commands -->
+          <div class="recommended-commands" v-if="recommendedCommands.length > 0">
+            <div class="commands-title">推荐命令：</div>
+            <el-button
+              v-for="(cmd, index) in recommendedCommands"
+              :key="index"
+              size="small"
+              @click="sendCommandToTerminal(cmd)"
+              :type="isSafeCommand(cmd) ? 'success' : 'danger'"
+              style="margin: 5px;"
+            >
+              {{ cmd }}
+            </el-button>
+          </div>
+        </div>
+        <!-- Right Side: Terminal -->
+        <div class="terminal-right">
+          <div class="terminal-header">
+            <el-button size="small" @click="clearTerminal">清屏</el-button>
+            <el-tag type="info">SSH 连接：{{ currentServerIp }}</el-tag>
+          </div>
+          <div class="terminal-content" ref="terminalRef"></div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="terminalVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick, watch, onUnmounted } from 'vue'
 import request from '../api/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Check, Close } from '@element-plus/icons-vue'
+import { Terminal } from 'xterm'
+import { FitAddon } from 'xterm-addon-fit'
+import { AttachAddon } from 'xterm-addon-attach'
+import 'xterm/css/xterm.css'
 
 const loading = ref(false)
 const tableData = ref([])
@@ -211,6 +268,19 @@ const queryForm = reactive({
   env: '',
   status: ''
 })
+
+// Terminal related
+const terminalVisible = ref(false)
+const terminalSocket = ref(null)
+const terminalRef = ref(null)
+const terminal = ref(null)
+const fitAddon = ref(null)
+const attachAddon = ref(null)
+const chatMessages = ref([])
+const chatInput = ref('')
+const recommendedCommands = ref([])
+const currentServerIp = ref('')
+const currentServerId = ref(null)
 
 const fetchData = async () => {
   loading.value = true
@@ -382,11 +452,267 @@ const handleReset = () => {
   fetchData()
 }
 
+// Terminal related functions
+const handleTerminal = (row) => {
+  // 重置所有状态
+  chatMessages.value = []
+  recommendedCommands.value = []
+  chatInput.value = ''
+  currentServerIp.value = row.ip
+  currentServerId.value = row.id
+
+  // 清理旧的 WebSocket 连接
+  if (terminalSocket.value) {
+    try {
+      terminalSocket.value.close()
+    } catch (e) {
+      console.warn('关闭旧 WebSocket 连接失败:', e)
+    }
+    terminalSocket.value = null
+  }
+
+  terminalVisible.value = true
+
+  nextTick(() => {
+    // 先清理旧的 terminal 实例
+    if (terminal.value) {
+      try {
+        terminal.value.dispose()
+      } catch (e) {
+        console.warn('清理旧 terminal 实例失败:', e)
+      }
+      terminal.value = null
+    }
+
+    // 清理 addon 引用
+    fitAddon.value = null
+    attachAddon.value = null
+
+    // 初始化新的 terminal
+    initTerminal()
+
+    // 创建 WebSocket 连接
+    const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/server-terminal/${row.id}`
+
+    try {
+      terminalSocket.value = new WebSocket(wsUrl)
+
+      terminalSocket.value.onopen = () => {
+        attachAddon.value = new AttachAddon(terminalSocket.value)
+        terminal.value.loadAddon(attachAddon.value)
+        terminal.value.write('>>> 服务器终端连接成功：' + row.ip + '\\r\\n')
+        terminal.value.write('>>> 已建立 SSH 连接，可以执行命令\\r\\n\\r\\n')
+      }
+
+      terminalSocket.value.onerror = (error) => {
+        console.error('WebSocket 连接错误:', error)
+        terminal.value.write('\\r\\n>>> 连接失败，请检查后端服务是否启动\\r\\n')
+      }
+
+      terminalSocket.value.onclose = (event) => {
+        console.log('WebSocket 连接关闭:', event.code, event.reason)
+        if (!event.wasClean) {
+          terminal.value.write('\\r\\n>>> 连接异常关闭\\r\\n')
+        }
+      }
+    } catch (e) {
+      console.error('创建 WebSocket 失败:', e)
+      terminal.value.write('\\r\\n>>> 创建连接失败，请检查网络或后端服务\\r\\n')
+    }
+  })
+}
+
+const initTerminal = () => {
+  // 检查 DOM 元素是否存在
+  if (!terminalRef.value) {
+    console.error('Terminal 容器元素不存在')
+    return
+  }
+
+  // 安全地清理旧的 terminal 实例（如果存在）
+  if (terminal.value) {
+    try {
+      terminal.value.dispose()
+    } catch (e) {
+      console.warn('Terminal dispose error:', e)
+    }
+    terminal.value = null
+  }
+
+  try {
+    // 创建新的 terminal 实例
+    terminal.value = new Terminal({
+      cursorBlink: true,
+      fontSize: 14,
+      theme: { background: '#282a36', foreground: '#f8f8f2' }
+    })
+
+    fitAddon.value = new FitAddon()
+    terminal.value.loadAddon(fitAddon.value)
+    terminal.value.open(terminalRef.value)
+    fitAddon.value.fit()
+  } catch (e) {
+    console.error('初始化 terminal 失败:', e)
+  }
+}
+
+const sendChatMessage = async () => {
+  if (!chatInput.value.trim()) return
+  chatMessages.value = [{ type: 'user', sender: '您', content: chatInput.value }]
+  try {
+    const response = await request.post('/terminal/generate-command', chatInput.value)
+    recommendedCommands.value = response
+    chatMessages.value.push({ type: 'ai', sender: 'AI', content: '推荐命令已生成' })
+  } catch (e) {
+    chatMessages.value.push({ type: 'ai', sender: 'AI', content: '生成命令失败' })
+  }
+  chatInput.value = ''
+}
+
+const isSafeCommand = (cmd) => !/rm\s+-rf|mkfs|shutdown|reboot/i.test(cmd)
+
+const sendCommandToTerminal = (cmd) => {
+  if (terminalSocket.value) {
+    terminalSocket.value.send(cmd + '\\r')
+  }
+}
+
+const clearTerminal = () => {
+  if (terminal.value) {
+    terminal.value.clear()
+  }
+}
+
+watch(terminalVisible, (val) => {
+  if (!val) {
+    // 清理 WebSocket 连接
+    if (terminalSocket.value) {
+      try {
+        terminalSocket.value.close()
+      } catch (e) {
+        console.warn('关闭 WebSocket 失败:', e)
+      }
+      terminalSocket.value = null
+    }
+
+    // 清理 terminal 实例
+    if (terminal.value) {
+      try {
+        terminal.value.dispose()
+      } catch (e) {
+        console.warn('销毁 terminal 实例失败:', e)
+      }
+      terminal.value = null
+    }
+
+    // 清理 addon 引用
+    fitAddon.value = null
+    attachAddon.value = null
+  }
+})
+
+// 组件卸载时清理终端资源
+onUnmounted(() => {
+  if (terminalSocket.value) {
+    terminalSocket.value.close()
+    terminalSocket.value = null
+  }
+  if (terminal.value) {
+    try {
+      terminal.value.dispose()
+    } catch (e) {
+      console.warn('Terminal dispose error on unmount:', e)
+    }
+    terminal.value = null
+  }
+  fitAddon.value = null
+  attachAddon.value = null
+})
+
 onMounted(fetchData)
 </script>
 
 <style scoped>
 .toolbar {
   margin-bottom: 20px;
+}
+
+.terminal-container {
+  display: flex;
+  height: 70vh;
+  gap: 10px;
+}
+
+.terminal-left {
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-right: 1px solid #e0e0e0;
+  padding-right: 10px;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 10px;
+  background: #f5f5f5;
+}
+
+.chat-message {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.chat-message.user {
+  background: #e3f2fd;
+}
+
+.chat-message.ai {
+  background: #e8f5e9;
+}
+
+.chat-input-container {
+  margin-top: 10px;
+}
+
+.recommended-commands {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.commands-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #666;
+}
+
+.terminal-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-header {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.terminal-content {
+  flex: 1;
+  border: 1px solid #333;
+  border-radius: 4px;
+  overflow: hidden;
 }
 </style>
