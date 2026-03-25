@@ -105,19 +105,33 @@ public class SshConnectionPool {
 
     /**
      * 创建新的 SSH Session
+     * 优先使用密钥认证，如果密钥不可用则使用密码认证
      */
     private Session createNewSession(Server server) throws Exception {
         int connectionTimeout = opsterProperties.getSshPool().getConnectionTimeout();
         int sessionTimeout = opsterProperties.getSshPool().getSessionTimeout();
 
-        return SshUtils.connect(
-            server.getIp(),
-            22,
-            server.getUsername(),
-            server.getPassword(),
-            connectionTimeout,
-            sessionTimeout
-        );
+        // 优先使用密钥认证
+        if (server.getPrivateKey() != null && !server.getPrivateKey().isEmpty()) {
+            log.info("使用 SSH 密钥认证连接：{}@{}", server.getUsername(), server.getIp());
+            return SshUtils.connectWithKey(
+                server.getIp(),
+                22,
+                server.getUsername(),
+                server.getPrivateKey(),
+                server.getPrivateKeyPassphrase()
+            );
+        } else {
+            log.info("使用密码认证连接：{}@{}", server.getUsername(), server.getIp());
+            return SshUtils.connect(
+                server.getIp(),
+                22,
+                server.getUsername(),
+                server.getPassword(),
+                connectionTimeout,
+                sessionTimeout
+            );
+        }
     }
 
     /**

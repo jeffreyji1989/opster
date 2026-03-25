@@ -81,4 +81,18 @@ public class Server extends BaseEntity {
      */
     @Column(name = "maven_home")
     private String mavenHome;
+
+    /**
+     * SSH 私钥（PEM 格式，加密存储）
+     */
+    @Column(name = "private_key", length = 10000)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String privateKey;
+
+    /**
+     * 私钥密码（可选）
+     */
+    @Column(name = "private_key_passphrase")
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String privateKeyPassphrase;
 }
